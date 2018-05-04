@@ -1,0 +1,230 @@
+# $Id$
+# rc.local (8) for `amal.arabs.ps' running NetBSD/i386 v5.0.1
+#	-- startup and shutdown scripts
+#
+# This file is (nearly) the last thing invoked by /etc/rc during a
+# normal boot, via /etc/rc.d/local.
+#
+# It is intended to be edited locally to add site-specific boot-time
+# actions, such as starting locally installed daemons.
+#
+# An alternative option is to create site-specific /etc/rc.d scripts.
+#
+
+export PATH=/usr/pkg/sbin:/usr/pkg/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export LD_LIBRARY_PATH=/usr/pkg/lib
+
+# {{{ Defaults
+_DEFAULT_CWD=/var/empty
+_DEFAULT_CLASS=daemon
+_DEFAULT_USER=root
+_DEFAULT_GROUP=wheel
+# }}}
+# {{{ Service vectors
+#	name:file-requisite[,...]:cwd:class:user:group
+_SUBR_START="								\
+	cgd_wd0k:cgdconfig,/etc/cgd/wd0k::-:-:-				\
+	cgd_sd0a:cgdconfig,/etc/cgd/sd0a::-:-:-				\
+	mixerctl:::::							\
+	ddclient:::::							\
+	fcgi:spawn-fcgi,fcgiwrap:/var/www:daemon:www:www		\
+	fcgi_cgit:spawn-fcgi,fcgiwrap:/var/chroot/bint/public_html/cgit:daemon:bint:users	\
+	php:spawn-fcgi,/usr/pkg/libexec/cgi-bin/php:::www:www		\
+	nginx::/usr/pkg/etc/nginx:::					\
+	ajaxterm:./ajaxterm.py:/var/chroot/ajaxterm/ajaxterm::_ajaxterm:daemon			\
+	openvpn_ns1:openvpn:/usr/pkg/etc/openvpn:::			\
+	openvpn_ns2:openvpn:/usr/pkg/etc/openvpn:::			\
+	vhosts:::-:-:-"
+
+#	name:pidfile:pattern
+_SUBR_STOP="								\
+	ddclient:/var/run/ddclient.pid:^perl..ddclient			\
+	fcgi:/usr/pkg/etc/nginx/run/fcgi.pid:^fcgiwrap$			\
+	fcgi_cgit:/var/chroot/bint/fcgi.pid:^fcgiwrap$			\
+	php:/usr/pkg/etc/nginx/run/php.pid:^/usr/pkg/libexec/cgi-bin/php$		\
+	nginx:/var/run/nginx.pid:^nginx..master.process.nginx$		\
+	ajaxterm:/var/chroot/ajaxterm/ajaxterm/ajaxterm.pid:^python...ajaxterm.py.	\
+	openvpn_ns1:/var/run/openvpn.ns1.pid:^/usr/pkg/sbin/openvpn.--	\
+	openvpn_ns2:/var/run/openvpn.ns2.pid:^/usr/pkg/sbin/openvpn.--"
+# }}}
+# {{{ Service invokation subr
+# cgdconfig (8) -- configuration utility for the cryptographic disk driver
+cgd_wd0k() {
+	cgdconfig -V ffs cgd0 /dev/wd0k /etc/cgd/wd0k &&
+	fsck /home && mount home ;
+}
+
+cgd_sd0a() {
+	cgdconfig -V ffs cgd1 /dev/sd0a /etc/cgd/sd0a &&
+	fsck /backup/home && scsictl sd0 stop ;
+}
+
+# mixerctl (1) -- control audio mixing
+mixerctl() {
+	command mixerctl -w outputs.master.mute=on &&
+	command mixerctl -w outputs.headphones.mute=on &&
+	command mixerctl -w record.volume.mute=on ;
+}
+
+# ddclient (1) -- <http://sourceforge.net/apps/trac/ddclient>
+ddclient() { command ddclient ; }
+
+# fcgiwrap (1) -- <http://nginx.localdomain.pl/wiki/FcgiWrap>
+fcgi() { spawn-fcgi -a 127.0.0.1 -p 9000 -P /usr/pkg/etc/nginx/run/fcgi.pid -F 2 -f fcgiwrap ; }
+fcgi_cgit() { spawn-fcgi -a 127.0.0.1 -p 9002 -P /var/chroot/bint/fcgi.pid F 2 -f fcgiwrap ; }
+php() { spawn-fcgi -a 127.0.0.1 -p 9001 -C 2 -P /usr/pkg/etc/nginx/run/php.pid -f /usr/pkg/libexec/cgi-bin/php ; }
+
+# nginx (8) -- <http://nginx.net/>
+nginx() { command nginx ; }
+
+# ajaxterm (1) -- <http://antony.lesuisse.org/software/ajaxterm/>
+ajaxterm() { ./ajaxterm.py -d -P ajaxterm.pid -c /usr/bin/login ; }
+
+# openvpn (8) -- secure IP tunnel daemon.
+openvpn_ns1() {
+	command openvpn							\
+		--daemon openvpn --writepid /var/run/openvpn.ns1.pid	\
+		--config /usr/pkg/etc/openvpn/openvpn.ns1:amal.conf ;
+}
+
+openvpn_ns2() {
+	command openvpn							\
+		--daemon openvpn --writepid /var/run/openvpn.ns2.pid	\
+		--config /usr/pkg/etc/openvpn/openvpn.ns2:amal.conf ;
+}
+
+# vhosts (1)
+vhosts() {
+	install -o arab -g wheel -m 0644 /dev/null /var/run/vhosts &&
+	command vhosts -afw ;
+}
+# }}}
+# {{{ Invokation mode subr
+do_start_all() {
+	for _svc_spec in ${_SUBR_START}; do
+		do_start "${_svc_spec%%:*}" ;
+	done
+}
+
+do_stop() {
+	_name="${1}" ; _svc_spec="${_SUBR_STOP#*[	 ]${_name}:}" ;
+	[ "x${_svc_spec}" = "x${_SUBR_STOP}" ]	\
+		&& { return 1 ; }		\
+		|| { _svc_spec="${_svc_spec%%[	 ]*}" ; };
+
+	_IFS0="${IFS}" ; IFS=':' ; set -- ${_svc_spec} ; IFS="${_IFS0}" ;
+	[ $# -eq 1 ] || [ $# -eq 2 ] || { return 1 ; } && {
+		_pidfile="${1}" ; _pattern="${2}" ; };
+
+	[ "x" = "x${_pidfile}" ] || [ -f "${_pidfile}" ]		\
+		&& {							\
+			_log=`
+			(	set +e;                 # set -o errexit
+				_pid="$(cat ${_pidfile})" ;
+				echo "Stopping \\\`${_name}' (PID: ${_pid})" ;
+				kill "${_pid}" ;
+			) 2>&1` ; rc=$? ; do_log ${rc} "${_name}" "${_log}" ;
+			[ -f "${_pidfile}" ] && {
+				rm -f "${_pidfile}" 2>/dev/null ; };	\
+		} || [ "x" != "x${_pattern}" ] && {
+			pkill -f "${_pattern}" ; rc=$? ;
+			do_log				\
+				${rc} "${_name}"	\
+				"Killed all processes matching /${_pattern}/."
+		};
+}
+
+do_start() {
+	_name="${1}" ; _svc_spec="${_SUBR_START#*[	 ]${_name}:}" ;
+	[ "x${_svc_spec}" = "x${_SUBR_START}" ]	\
+		&& { return 1 ; }		\
+		|| { _svc_spec="${_svc_spec%%[	 ]*}" ; };
+
+	_IFS0="${IFS}" ; IFS=':' ; set -- ${_svc_spec} ; IFS="${_IFS0}" ;
+	[ $# -eq 4 ] || [ $# -eq 5 ] || { return 1 ; } && {
+		_file_requisites="${1:-${_name}}" ;
+		_cwd="${2:-${_DEFAULT_CWD}}" ;
+		_class="${3:-${_DEFAULT_CLASS}}" ;
+		_user="${4:-${_DEFAULT_USER}}" ;
+		_group="${5:-${_DEFAULT_GROUP}}" ;
+	};
+
+	[ "x1" != "x${_IS_SU}" ] &&			\
+	[ "x-" != "x${_class}" ] && [ "x-" != "x${_user}" ] && {
+		cd "${_cwd}" >/dev/null 2>&1 ;		\
+		sudo				 	\
+			-c "${_class}" -u "${_user}"	\
+			-g "${_group}"			\
+			env _IS_SU=1 sh ${0} --start ${_name};
+		return ;
+	} || {	do_invoke ; };
+}
+# }}}
+# {{{ Wrapper subr
+do_requisites() {
+	_IFS0="${IFS}" ; IFS=',' ; set -- ${1} ; IFS="${_IFS0}" ;
+	while [ $# -gt 0 ]; do
+		[ -f "${1}" ]						\
+		&& { shift ; continue ; }				\
+		|| [ "x" = "x`command which ${1} 2>/dev/null`" ]	\
+		&& {							\
+			echo "Unable to resolve dependency \`${1}'";	\
+			return 1 ; }					\
+		|| { shift ; continue ; } ;
+	done;
+}
+
+do_invoke() {
+	_log=`
+	(	set +e;                 # set -o errexit
+
+		echo -n "Invoking \\\`${_name}' from ${_cwd}" ;
+		[ "x-" = "x${_class}" ] || {
+			echo -n " as ${_class}:${_user}" ; };
+		echo;
+
+		cd "${_cwd}" &&
+		do_requisites "${_file_requisites}" && "${_name}"
+	) 2>&1` ; rc=$? ; do_log ${rc} "${_name}" "${_log}"
+};
+
+do_log() {
+	_rc="${1}" ; _pfx="${2}" ; _log="${3}" ;
+	echo "${_log}"					|\
+		sed 's,^,['"${_pfx}"'] ,g' 2>/dev/null	|\
+		logger -t rc.local ;
+	[ "x${_rc}" = "x0" ] && { echo -n " ${_pfx}" ; } ;
+}
+# }}}
+
+do_usage() { echo ; echo "usage: $0 --{start, stop, restart} name" ; exit 1 ; }
+
+[ $# -eq 0 ] && {
+	echo -n 'Starting local daemons:' ;
+#	do_start_all ;
+	echo '.' ; exit 0 ;
+};
+
+_mode="${1}" ; _name="${2}" ;
+[ "x${_name}" = "x" ] && { do_usage ; };
+case "${_mode}" in
+\-\-[sS][tT][aA][rR][tT]*)
+	[ "x1" != "x${_IS_SU}" ] && { echo -n 'Starting local daemons:' ; };
+	 do_start "${_name}" ;
+	[ "x1" != "x${_IS_SU}" ] && { echo '.' ; };
+	;;
+
+\-\-[sS][tT][oO][pP]*)
+	[ "x1" != "x${_IS_SU}" ] && { echo -n 'Stopping local daemons:' ; };
+	 do_stop "${_name}" ;
+	[ "x1" != "x${_IS_SU}" ] && { echo '.' ; };
+	;;
+
+\-\-[rR][eE][sS][tT][aA][rR][tT]*)
+	sh $0 --stop "${_name}" ; sh $0 --start "${_name}" ;
+	;;
+
+*)	do_usage ; ;;
+esac
+
+# vim:ts=8 sw=8 tw=80 noexpandtab filetype=sh

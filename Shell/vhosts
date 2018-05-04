@@ -1,0 +1,134 @@
+#!/bin/sh
+# $Id$
+#
+# Lists the host names associated with each globally routed IPv{4,6} host
+# address configured on the caller's box, dispatching RDNS queries to
+# validate the authority of each resolved host name, optionally amending
+# the AS number and corresponding /descr/ from RADB.
+#
+#      Author:	vxp/arab <l.illanes@gmx.de>, <irc://arabs.ps/arab>
+# Last update:	Sun Jan 27 13:11:52 CET 2013
+#   Tested on:	FreeBSD 7.1 and 9.1-RELEASE, OpenBSD 4.5, NetBSD 5.0.1, and Debian 5.0.
+#    Requires:	SuS sh (1), getopt (1); SuS awk (1) or [gn]awk (1);
+#		ISC BIND dig (1); BSD ifconfig (8) or ip (8) on Linux,
+#		and optionally whois (1).
+#
+
+# {{{ Tunables
+# Maximum string length in characters of an IPv6 address in presentation
+# format, as per <netinet6/in6.h>.  Note that an IPv4 address string
+# constitutes a subset of the former in terms of length.
+ADDRSTRLEN=39
+
+# Maximum number of DNS UDP query attempts, including the initial query,
+# and the maximum duration of each query in seconds.  
+DIG_TRIES=2
+DIG_TIME=2
+
+# XXX
+VHOSTS_LIST="/var/run/vhosts"
+# }}}
+# {{{ subr
+_get_laddrs() {
+{	[ "x`uname -s`" = "xLinux" ] && ip addr list || ifconfig -a ; }	|\
+	awk '/inet6? alias/ { print $3; next; }	/inet6?/ { print $2; }'	|\
+	awk '!/^((127|10|172|192\.168)\.|(fe..)?:)|inet/ {		 \
+		sub("/[0-9]*$", ""); print; }'
+};
+
+_printf() {
+	local nflag="\\n"; [ "x-n" = "x${1}" ] && { nflag=""; shift; };
+	local line="`printf \"$@\"`"; printf -- "%s${nflag}" "${line}";
+	[ -n "${wflag}" ] && { printf -- "%s${nflag}" "${line}"		\
+		>> "${VHOSTS_LIST}"; };
+};
+
+dig() {
+	[ -n "${1}" ] || return;
+	local xflag="${1%%[!!]*}" name="${1#!}" class="${2}" IFS="
+";	set -- `command dig ${xflag:+-x} "${name}" IN "${class}"	\
+		+short +nocomments					\
+		+time="${DIG_TIME}" +tries="${DIG_TRIES}" 2>/dev/null`;
+	[ -n "${1}" ] && [ "x" = "x${1##;*}" ] &&			\
+	echo "(timed out?)" || echo "${1}" ;
+};
+# }}}
+
+# trap(1) the relevant set of signals to ensure clean script termination.
+abort_exec() { printf "\n--- ABORTED ---\n"; exit 1; };
+trap abort_exec HUP INT QUIT PIPE TERM USR1 USR2;
+
+#
+# Parse optionally supplied command options to determine the desired mode of
+# operation, either cat(1)ting an already present and readable /vhosts/ list
+# to the standard output or dispatching individual DNS queries.
+for c in `getopt jfwah $* 2>/dev/null`
+do	case "${c}" in
+	-f) fflag=1; ;; -w) wflag=1; ;; -a) aflag=1; ;; -h) hflag=1; ;; -j) jflag=1; ;;
+	--) break; ;;
+	esac
+done;	[ "${hflag}" ] && { echo "usage: $0 [-fwa]"; exit 1; };
+
+[ -n "${jflag}" ] && {
+	if [ "FreeBSD" != "`uname -s 2>/dev/null`" ];
+	then	printf "\`-j' is only available on FreeBSD.\n" ; exit 3;
+	else	_jid_list="`jls jid`" || exit 4;
+	fi;
+};
+
+[ -r "${VHOSTS_LIST}" -a -z "${fflag}" ]				\
+&& { cat "${VHOSTS_LIST}"; }						\
+|| {
+	[ -n "${wflag}" ] && { printf "" >| "${VHOSTS_LIST}" || exit 2; };
+
+	#
+	# Iterate over the subset of IPv{4,6} addresses assigned to every
+	# network interface marked as `up,' resolving each, and establishing
+	# 2-way RDNS {authority,hostname} confirmation {where,if} applicable.
+	for ha in `_get_laddrs`;
+	do	type="NO PTR" pf="4" q="A" radb="" host="" jid="";
+
+		# Infer the protocol family from the presentation format.
+		[ "x${ha##*:*}" = "x${ha}" ] || { pf="6"; q="AAAA"; };
+		[ -n "${aflag}" ] && {
+		# {{{ RADB
+		radb="`							\
+		whois -h whois.radb.net "${ha}" 2>/dev/null | awk '	\
+		/^[^:]+:/ {						\
+			gsub(/(\t| )+/, " ", $0); split($0, a, ": ");	\
+			if(v[a[1]]) { next; } else { v[a[1]] = a[2]; };	\
+		}							\
+									\
+		END { printf("[%8.8s/%16.16s]", v["origin"], v["mnt-by"]); }'`";
+		# }}}
+		};
+
+		# Tentatively print the address, optional RADB information, plus
+		# its protocol family.
+		_printf -n "%-${ADDRSTRLEN}s${radb} %-2s " "${ha}" "[IPv${pf}]";
+
+		[ -n "${jflag}" ] && {
+			for _jid in ${_jid_list};
+			do	for _jha in `jls -j "${_jid}" "ip${pf}.addr" 2>/dev/null | sed 's/,/ /g'`;
+				do	[ "x${_jha}" = "x${ha}" ] && { jid="${_jid}" ; break; };
+				done;
+
+				[ "x${jid}" != "x" ] && { break; };
+			done;
+
+			_printf -n "[JID:% 3u]" "${jid:-0}";
+		};
+
+		# Resolve the address' corresponding reverse record and compare
+		# the resulting FQDN's {A,AAAA} record to the original address,
+		# denoting RDNS authority or lack thereof.
+		host="`dig !${ha} PTR`"; [ -n "${host}" ] && {
+			[ "x`dig ${host} ${q}`" = "x${ha}" ]		\
+			&& type="PTR" || type="NO RDNS"; };
+
+		# Print the host name this address resolves to and a newline.
+		_printf -- "--%7s--> %s" "${type}" "${host}"
+	done
+};
+
+# vim:ts=8 sw=8 tw=80 noexpandtab foldmethod=marker

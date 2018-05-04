@@ -1,0 +1,35 @@
+# $Id$
+
+# Seperately prints the cumulative total size including each process'
+# virtual address space aswell as the subset of pages actually /resident/
+# (ie. recently touched, wired down, etc.) to its VA.
+ps -axo vsz,rss |\
+	awk '	BEGIN { rss=0; vsz=0; }
+			/[0-9]+ +[0-9]+/ { vsz += $1; rss += $2; }
+		END { print (vsz / 1024) "M " rss / 1024 "M" }';
+
+# Calculates the total size of the memory accounted for by the amount
+# of pages on the VM's various lists, shown in MB.
+for list in page active wire cache inactive free
+do
+	echo "${list} list: `echo $(( \`sysctl -n vm.stats.vm.v_${list}_count\` *	\
+				      \`sysctl -n vm.stats.vm.v_page_size\` )) / 1048576 | bc`M"
+done
+
+# Produces the cumulative total size of typed memory,
+# dynamically allocated in-kernel via the MALLOC(9)
+# facility, rounded to MB.
+vmstat -m |\
+	sed -n 's/^.* \([0-9]*\)K.*$/\1/p' |\
+	awk 'BEGIN { c=0; } { c += $1; } END { print c / 1024 "M" }';
+
+# Prints the size of in-kernel VFS' buf(9)fer cache memory in MB.
+echo `echo \`sysctl -n vfs.bufspace\` / 1048576 | bc`M
+
+# Prints per-process file descriptor allocation count for the user
+# currently logged in.
+fstat -u `id -un 2>/dev/null` |\
+	awk '$0 !~ /^USER/ { count[$2]++; };
+	     END { for ( var in count ) print var ": " count[var] }';
+
+# vim:filetype=sh ts=8 sw=8 noexpandtab
