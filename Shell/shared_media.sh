@@ -57,21 +57,26 @@ playlists() {
 	for _subdir in ${MUSIC_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
 		_tmpf_pname="$(mktemp -t "$(basename "${0%.sh}_XXXXXX")")";
-		if [ "${_nflag:-0}" -eq 1 ]; then
-			echo find "${HOME}/${_subdir}" -type f -not -iname \*.m3u8		\
-				-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' \| sort	\
-					\> "${_tmpf_pname}";
-		else
-			rc "${_nflag}" find "${HOME}/${_subdir}" -type f -not -iname \*.m3u8	\
+		echo find "${HOME}/${_subdir}" -type f						\
+			\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
+			   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
+			   -iname \*.webm -or -iname \*.wma \)					\
+			-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' \| sort		\
+				\> "${_tmpf_pname}";
+		if [ "${_nflag:-0}" -eq 0 ]; then
+			find "${HOME}/${_subdir}" -type f					\
+				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or	\
+				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or	\
+				   -iname \*.webm -or -iname \*.wma \)				\
 				-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' | sort	\
 					> "${_tmpf_pname}";
 		fi;
+		rc "${_nflag}" unix2dos "${_tmpf_pname}";
+		rc "${_nflag}" sed -i'' 's,/,\\,g' "${_tmpf_pname}";
 		rc "${_nflag}" sed -i'' '1s/^/\xef\xbb\xbf/' "${_tmpf_pname}";
+		rc "${_nflag}" mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir#* - }.m3u8";
 		if [ "${_nflag:-0}" -eq 1 ]; then
-			echo mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir}.m3u8";
 			rm -f "${_tmpf_pname}";
-		else
-			rc "${_nflag}" mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir}.m3u8";
 		fi;
 		IFS="	";
 	done;
