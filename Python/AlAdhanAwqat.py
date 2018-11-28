@@ -92,10 +92,12 @@ class AlAdhanAwqat(object):
             and   (timeNowMins <= (timeTimingMins + int(self.options["waqtOffset"])))):
                 timingsList += ["#[fg=brightwhite]" + timingValue + "#[fg=default]"]
             elif (timeNowMins < timeTimingMins) and not foundNext:
-                timingsList += ["#[fg=brightyellow]" + timingValue + "#[fg=default]"]
+                timingsList += ["#[fg=brightgreen]" + timingValue + "#[fg=default]"]
                 foundNext = True
+            elif timeNowMins > timeTimingMins:
+                timingsList += ["#[fg=brightblack]" + timingValue + "#[fg=default]"]
             else:
-                timingsList += [timingValue]
+                timingsList += ["#[fg=green]" + timingValue + "#[fg=default]"]
         print(" ".join(timingsList))
     # }}}
     # {{{ synchronise(self): XXX
