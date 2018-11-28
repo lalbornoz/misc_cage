@@ -15,11 +15,11 @@ class AlAdhanAwqat(object):
         "awqatFilter":["Fajr", "Sunrise", "Dhuhr", "Asr", "Maghrib", "Isha"],
         "cachePathBase":os.path.expanduser(os.path.join("~", ".cache", "AlAdhanAwqat")),
         "city":None, "country":None, "forceFetch":False, "help":False, "outputFormat":"list",
-        "verbose":False}
-    optionsString = "c:C:fF:hp:t:v"
+        "verbose":False, "waqtOffset":15}
+    optionsString = "c:C:fF:hp:t:vw:"
     optionsStringMap = {
         "c":"city", "C":"cachePathBase", "f":"forceFetch", "F":"awqatFilter",
-        "h":"help", "p":"outputFormat", "t":"country", "v":"verbose"}
+        "h":"help", "p":"outputFormat", "t":"country", "v":"verbose", "w":"waqtOffset"}
 
     # {{{ _log(self, msg): Log single message to std{err,out} w/ timestamp
     def _log(self, msg, isError=False, isVerbose=False):
@@ -36,7 +36,10 @@ class AlAdhanAwqat(object):
             print("error: missing city", file=sys.stderr)
         if options["country"] == None:
             print("error: missing country", file=sys.stderr)
-        print("usage: {} [-h] [-c city] [-C dname] [-f] [-F timing[,timing..]] [-p list|tmux] [-t country] [-v]".format(argv0), file=sys.stderr)
+        print("usage: {} [-h]".format(argv0), file=sys.stderr)
+        print("       [-c city] [-C dname] [-f] [-F timing[,timing..]]".format(argv0), file=sys.stderr)
+        print("       [-p list|tmux] [-t country] [-v] [-w offset]".format(argv0), file=sys.stderr)
+        print("", file=sys.stderr)
         print("       -h....................: show this screen", file=sys.stderr)
         print("       -c city...............: specifies location city", file=sys.stderr)
         print("       -C dname..............: specifies cache directory pathname", file=sys.stderr)
@@ -45,6 +48,7 @@ class AlAdhanAwqat(object):
         print("       -p list|tmux..........: specifies output format (defaults to {})".format(self.optionsDefault["outputFormat"]), file=sys.stderr)
         print("       -t country............: specifies location country ", file=sys.stderr)
         print("       -v....................: increase verbosity (defaults to: {})".format(self.optionsDefault["verbose"]), file=sys.stderr)
+        print("       -w offset.............: specifies waqt [-+] offset for -p tmux (defaults to: {})".format(self.optionsDefault["waqtOffset"]), file=sys.stderr)
     # }}}
     # {{{ _getData(self, apiUrlBase, cachePathBase, city, country, forceFetch): XXX
     def _getData(self, apiUrlBase, cachePathBase, city, country, forceFetch):
@@ -78,9 +82,17 @@ class AlAdhanAwqat(object):
     # }}}
     # {{{ _printAsTmux(self, timings): XXX
     def _printAsTmux(self, timings):
-        timingsList = []
+        timeNow, timingsList = time.localtime(), []
+        timeNowMins = (timeNow.tm_hour * 60) + timeNow.tm_min
         for _, timingValue in sorted(timings.items(), key=lambda kv: kv[1]):
-            timingsList += [timingValue]
+            timeTiming = time.strptime(timingValue, "%H:%M")
+            timeTimingMins = (timeTiming.tm_hour * 60) + timeTiming.tm_min
+            if  timeNowMins == timeTimingMins                                           \
+            or  ((timeNowMins >= (timeTimingMins - int(self.options["waqtOffset"])))    \
+            and  (timeNowMins <= (timeTimingMins + int(self.options["waqtOffset"])))):
+                timingsList += ["#[fg=brightwhite]" + timingValue + "#[fg=default]"]
+            else:
+                timingsList += [timingValue]
         print(" ".join(timingsList))
     # }}}
     # {{{ synchronise(self): XXX
