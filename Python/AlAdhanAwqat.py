@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# AlAdhanAwqat.py -- Fetch monthly awqāt from AlAdhan.com
+# AlAdhanAwqat.py -- Obtain daily awqāt from AlAdhan.com
 # Copyright (c) 2018 Lucio Andrés Illanes Albornoz <lucio@lucioillanes.de>
 # This project is licensed under the terms of the MIT licence.
 #
@@ -82,15 +82,18 @@ class AlAdhanAwqat(object):
     # }}}
     # {{{ _printAsTmux(self, timings): XXX
     def _printAsTmux(self, timings):
-        timeNow, timingsList = time.localtime(), []
+        foundNext, timeNow, timingsList = False, time.localtime(), []
         timeNowMins = (timeNow.tm_hour * 60) + timeNow.tm_min
         for _, timingValue in sorted(timings.items(), key=lambda kv: kv[1]):
             timeTiming = time.strptime(timingValue, "%H:%M")
             timeTimingMins = (timeTiming.tm_hour * 60) + timeTiming.tm_min
-            if  timeNowMins == timeTimingMins                                           \
-            or  ((timeNowMins >= (timeTimingMins - int(self.options["waqtOffset"])))    \
-            and  (timeNowMins <= (timeTimingMins + int(self.options["waqtOffset"])))):
+            if   timeNowMins == timeTimingMins                                          \
+            or   ((timeNowMins >= (timeTimingMins - int(self.options["waqtOffset"])))   \
+            and   (timeNowMins <= (timeTimingMins + int(self.options["waqtOffset"])))):
                 timingsList += ["#[fg=brightwhite]" + timingValue + "#[fg=default]"]
+            elif (timeNowMins < timeTimingMins) and not foundNext:
+                timingsList += ["#[fg=brightyellow]" + timingValue + "#[fg=default]"]
+                foundNext = True
             else:
                 timingsList += [timingValue]
         print(" ".join(timingsList))
