@@ -45,6 +45,8 @@ class AlAdhanAwqat(object):
             rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName, city, country)
         if not rc:
             rc, status, data = self._getDataFetch(apiUrlBase, cacheFilePathName, city, country)
+            if rc:
+                self._purgeCache(cacheFilePathName, cachePathBase)
         return rc, status, data
     # }}}
     # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName, city, country): XXX
@@ -105,6 +107,14 @@ class AlAdhanAwqat(object):
             else:
                 timingsList += ["#[fg=green]" + timingValue + "#[fg=default]"]
         print(" ".join(timingsList))
+    # }}}
+    # {{{ _purgeCache(self, cacheFilePathName, cachePathBase): XXX
+    def _purgeCache(self, cacheFilePathName, cachePathBase):
+        if os.path.isdir(cachePathBase):
+            for cacheFileName in os.listdir(cachePathBase):
+                if  os.path.isfile(os.path.join(cachePathBase, cacheFileName))   \
+                and cacheFileName != os.path.basename(cacheFilePathName):
+                    os.remove(os.path.join(cachePathBase, cacheFileName))
     # }}}
     # {{{ _usage(self, argv0, options): XXX
     def _usage(self, argv0, options):
