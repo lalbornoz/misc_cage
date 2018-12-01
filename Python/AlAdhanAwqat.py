@@ -166,6 +166,8 @@ class AlAdhanAwqat(object):
         or options["country"] == None:
             self._usage(argv[0], options); exit(0);
         else:
+            if type(options["attrFilter"]) == str:
+                options["attrFilter"] = options["attrFilter"].split(",")
             self.options = options
 
 if __name__ == "__main__":
