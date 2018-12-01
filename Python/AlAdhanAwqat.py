@@ -4,6 +4,14 @@
 # Copyright (c) 2018 Lucio Andrés Illanes Albornoz <lucio@lucioillanes.de>
 # This project is licensed under the terms of the MIT licence.
 #
+# {{{ ~/.tmux.conf integration example
+# HOME_CITY="Hamburg"
+# HOME_COUNTRY="Germany"
+# set-option		-g status-interval      60
+# set-option		-g status-right		    "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -t $HOME_COUNTRY -F main.humidity,main.temp -p tmux) #(~/.local/bin/AlAdhanAwqat.py -c $HOME_CITY -t $HOME_COUNTRY -p tmux) #[fg=$TMUX_COLOUR]#H %H:%M:%S %d-%b-%y"
+# set-option		-g status-right-length  80
+# }}}
+#
 
 from getopt import getopt, GetoptError
 import hashlib, json, os, requests, sys, time, urllib.request
