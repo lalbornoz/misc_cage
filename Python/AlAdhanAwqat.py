@@ -11,7 +11,7 @@ import hashlib, json, os, requests, sys, time, urllib.request
 class AlAdhanAwqat(object):
     """Fetch monthly awqāt from AlAdhan.com"""
     # {{{ Class attributes
-    apiUrlBase = "http://api.aladhan.com/v1/calendarByCity"
+    apiUrlBase = "https://api.aladhan.com/v1/calendarByCity"
     helpString = """usage: {argv0} [-h]
        [-c city] [-C dname] [-f] [-F timing[,timing..]]
        [-p list|tmux] [-t country] [-v] [-w offset]
@@ -42,15 +42,15 @@ class AlAdhanAwqat(object):
         cacheFilePathName = os.path.join(cachePathBase, cacheFileName)
         rc = False
         if not forceFetch:
-            rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName, city, country)
+            rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName)
         if not rc:
             rc, status, data = self._getDataFetch(apiUrlBase, cacheFilePathName, city, country)
             if rc:
                 self._purgeCache(cacheFilePathName, cachePathBase)
         return rc, status, data
     # }}}
-    # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName, city, country): XXX
-    def _getDataCache(self, apiUrlBase, cacheFilePathName, city, country):
+    # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName): XXX
+    def _getDataCache(self, apiUrlBase, cacheFilePathName):
         if not os.path.isdir(os.path.dirname(cacheFilePathName)):
             os.makedirs(os.path.dirname(cacheFilePathName))
         if not os.path.exists(cacheFilePathName):
