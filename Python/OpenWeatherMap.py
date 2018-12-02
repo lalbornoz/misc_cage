@@ -8,7 +8,7 @@
 # HOME_CITY="Hamburg"
 # HOME_COUNTRY="Germany"
 # set-option		-g status-interval      60
-# set-option		-g status-right		    "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -t $HOME_COUNTRY -F main.humidity,main.temp -p tmux) #(~/.local/bin/AlAdhanAwqat.py -c $HOME_CITY -t $HOME_COUNTRY -p tmux) #[fg=$TMUX_COLOUR]#H %H:%M:%S %d-%b-%y"
+# set-option		-g status-right		    "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -t # $HOME_COUNTRY -F main.humidity,main.temp,weather.0.description -p tmux) #[fg=$TMUX_COLOUR]#H %H:%M:%S %d-%b-%y"
 # set-option		-g status-right-length  80
 # }}}
 #
@@ -29,6 +29,7 @@ class OpenWeatherMap(object):
         "main.temp_max":"°",
         "name":"",
         "visibility":"",
+        "weather.0.description":"",
         "wind.deg":"°",
         "wind.speed":""}
     attrTitles = {
@@ -39,6 +40,7 @@ class OpenWeatherMap(object):
         "main.temp_max":"Temperature (max.)",
         "name":"Location",
         "visibility":"Visibility",
+        "weather.0.description":"Description",
         "wind.deg":"Wind (degree)",
         "wind.speed":"Wind (speed)"}
     helpString = """usage: {argv0} [-h]
@@ -57,7 +59,7 @@ class OpenWeatherMap(object):
        -v..................: increase verbosity (defaults to: {self.optionsDefault[verbose]})"""
     optionsDefault = {
         "attrFilter":["main.humidity", "main.pressure", "main.temp", "main.temp_min",
-            "main.temp_max", "name", "visibility", "wind.deg", "wind.speed"],
+            "main.temp_max", "name", "visibility", "weather.0.description", "wind.deg", "wind.speed"],
         "cachePathBase":os.path.expanduser(os.path.join("~", ".cache", "OpenWeatherMap")),
         "city":None, "country":None, "forceFetch":False, "help":False, "outputFormat":"list",
         "purgeAfter":3600, "units":"metric", "verbose":False}
@@ -66,12 +68,22 @@ class OpenWeatherMap(object):
         "a":"purgeAfter", "c":"city", "C":"cachePathBase", "f":"forceFetch", "F":"attrFilter",
         "h":"help", "p":"outputFormat", "t":"country", "u":"units", "v":"verbose"}
     # }}}
+    # {{{ _capitalise(self, oldString): XXX
+    def _capitalise(self, oldString):
+        if len(oldString) > 1:
+            return oldString[0].upper() + oldString[1:]
+        else:
+            return oldString
+    # }}}
     # {{{ _flattenDict(self, oldDict, parentKey, sepChar): XXX
     def _flattenDict(self, oldDict, parentKey, sepChar):
         flatDict = {}
         for oldKey, oldVal in oldDict.items():
             if type(oldVal) == dict:
                 flatDict = {**flatDict, **self._flattenDict(oldVal, oldKey, sepChar)}
+            elif type(oldVal) == list:
+                for oldValIdx in range(len(oldVal)):
+                    flatDict = {**flatDict, **self._flattenDict(oldVal[oldValIdx], oldKey + "." + str(oldValIdx), sepChar)}
             else:
                 flatDict[oldKey if parentKey == "" else parentKey + sepChar + oldKey] = oldVal
         return flatDict
@@ -170,7 +182,10 @@ class OpenWeatherMap(object):
             attrsDict, attrsFlatDict, attrsPretty = {}, self._flattenDict(data, "", "."), {}
             for attrKey, attrValue in attrsFlatDict.items():
                 if attrKey in self.options["attrFilter"]:
-                    attrsDict[attrKey] = attrValue
+                    if attrKey == "weather.0.description":
+                        attrsDict[attrKey] = self._capitalise(attrsFlatDict[attrKey])
+                    else:
+                        attrsDict[attrKey] = attrValue
             for attrKey, attrValue in attrsDict.items():
                 attrsPretty[self.attrTitles[attrKey]] = str(attrValue) + self.attrSuffixes[attrKey]
             if self.options["outputFormat"] == "list":
