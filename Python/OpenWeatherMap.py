@@ -93,13 +93,12 @@ class OpenWeatherMap(object):
         cacheKey = "{}\0{}\0{}\0{}\0{}\0".format(apiUrlBase, city, country, time.strftime("%d%m%Y"), units)
         cacheFileName = hashlib.sha256(cacheKey.encode()).hexdigest()
         cacheFilePathName = os.path.join(cachePathBase, cacheFileName)
+        self._purgeCache(cacheFilePathName, cachePathBase)
         rc = False
         if not forceFetch:
             rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName)
         if not rc:
             rc, status, data = self._getDataFetch(apiUrlBase, cacheFilePathName, city, country, units)
-        if rc:
-            self._purgeCache(cacheFilePathName, cachePathBase)
         return rc, status, data
     # }}}
     # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName): XXX
@@ -153,11 +152,10 @@ class OpenWeatherMap(object):
     def _purgeCache(self, cacheFilePathName, cachePathBase):
         if os.path.isdir(cachePathBase):
             for cacheFileName in os.listdir(cachePathBase):
-                if  os.path.isfile(os.path.join(cachePathBase, cacheFileName))  \
-                and cacheFileName != os.path.basename(cacheFilePathName):
+                if  os.path.isfile(os.path.join(cachePathBase, cacheFileName)):
                     cacheFileMTime = int(os.path.getmtime(os.path.join(cachePathBase, cacheFileName)))
                     timeNow = int(time.time())
-                    if  timeNow > cacheFileMTime                                \
+                    if  timeNow > cacheFileMTime    \
                     and ((timeNow - cacheFileMTime) >= int(self.options["purgeAfter"])):
                         os.remove(os.path.join(cachePathBase, cacheFileName))
     # }}}
