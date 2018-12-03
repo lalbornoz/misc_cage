@@ -62,7 +62,7 @@ class OpenWeatherMap(object):
             "main.temp_max", "name", "visibility", "weather.0.description", "wind.deg", "wind.speed"],
         "cachePathBase":os.path.expanduser(os.path.join("~", ".cache", "OpenWeatherMap")),
         "city":None, "country":None, "forceFetch":False, "help":False, "outputFormat":"list",
-        "purgeAfter":3600, "units":"metric", "verbose":False}
+        "purgeAfter":900, "units":"metric", "verbose":False}
     optionsString = "a:c:C:fF:hp:t:u:v"
     optionsStringMap = {
         "a":"purgeAfter", "c":"city", "C":"cachePathBase", "f":"forceFetch", "F":"attrFilter",
