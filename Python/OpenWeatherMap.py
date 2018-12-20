@@ -8,7 +8,7 @@
 # HOME_CITY="Hamburg"
 # HOME_COUNTRY="Germany"
 # set-option		-g status-interval      60
-# set-option		-g status-right		    "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -t # # $HOME_COUNTRY -F main.humidity,main.temp,weather.0.main -p tmux) #[fg=$TMUX_COLOUR]#H %H:%M:%S %d-%b-%y"
+# set-option		-g status-right		    "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -t $HOME_COUNTRY -F main.humidity,main.temp,weather.0.main -p tmux) #[fg=$TMUX_COLOUR]#H %H:%M:%S %d-%b-%y"
 # set-option		-g status-right-length  80
 # }}}
 #
