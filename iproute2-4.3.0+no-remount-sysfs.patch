@@ -1,0 +1,28 @@
+--- iproute2-4.3.0/debian/patches/9999-no-remount-sysfs.patch.dist	1970-01-01 01:00:00.000000000 +0100
++++ iproute2-4.3.0/debian/patches/9999-no-remount-sysfs.patch	2017-10-19 11:43:27.969999027 +0200
+@@ -0,0 +1,18 @@
++--- iproute2-4.3.0/lib/namespace.c.orig	2015-11-04 01:34:46.000000000 +0100
+++++ iproute2-4.3.0/lib/namespace.c	2017-10-19 11:42:17.116355819 +0200
++@@ -73,15 +73,6 @@
++ 			strerror(errno));
++ 		return -1;
++ 	}
++-	/* Mount a version of /sys that describes the network namespace */
++-	if (umount2("/sys", MNT_DETACH) < 0) {
++-		fprintf(stderr, "umount of /sys failed: %s\n", strerror(errno));
++-		return -1;
++-	}
++-	if (mount(name, "/sys", "sysfs", 0, NULL) < 0) {
++-		fprintf(stderr, "mount of /sys failed: %s\n",strerror(errno));
++-		return -1;
++-	}
++ 
++ 	/* Setup bind mounts for config files in /etc */
++ 	bind_etc(name);
+--- iproute2-4.3.0/debian/patches/series.dist	2017-12-04 18:03:46.000000000 +0100
++++ iproute2-4.3.0/debian/patches/series	2018-01-26 20:12:37.145858780 +0100
+@@ -9,3 +9,4 @@
+ 1005-ip-maddr-fix-igmp-parsing.patch
+ 1006-ip-maddr-avoid-uninitialized-data.patch
+ 1007-ip-maddr-fix-filtering-by-device.patch
++9999-no-remount-sysfs.patch
