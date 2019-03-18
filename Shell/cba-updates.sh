@@ -44,8 +44,8 @@ update_host() {
 			awk '\''
 				$0 == "The following packages will be upgraded:" {m=1; next}
 				m {if ($0 !~ /^  /) {m=0} else {print}}'\''				|
-			sed -ne "s/  */\n/g" | sed -ne "/^ *$/d" -e "/^lib/d" -e "p")";
-		status "${rc}" dist-upgrade;
+			sed -ne "s/  */\n/gp" | sed -ne "/^ *$/d" -e "/^lib/d" -e "p" | paste -sd " ")";
+		status "${rc}" dist-upgrade "${pkgs}";
 
 		# apt-get -y autoremove --purge
 		apt-get -y autoremove --purge >>"${log_fname}" 2>&1;
@@ -70,9 +70,9 @@ update_host() {
 		fi' |\
 	while read -r _rc _type _msg; do
 	case "${_type}" in
-	autoremove|clean|dist-upgrade|update)
+	autoremove|clean|update)
 			printf_rc "${_rc}" " %s" "${_type}"; ;;
-	dpkg-new|rdepends)
+	dist-upgrade|dpkg-new|rdepends)
 			printf_rc "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
 	fini)		if [ "${_lflag:-0}" -eq 1 ]\
 			|| [ "${_rc}" -ne 0 ]; then
