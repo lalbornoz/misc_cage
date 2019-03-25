@@ -1,20 +1,20 @@
 #!/bin/sh
 #
 
-ALL_MEDIA_PNAMES="							\
-	Movies and TV shows - Archive					\
-	Movies and TV shows - Documentaries and programmes		\
-	Movies and TV shows - Video clips				\
-	Music - Flamenco Andaluzí and Middle-eastern arabic music	\
-	Music - Iranian and Kurdish music				\
-	Music - Soul, Jazz, and Latin American Music			\
-	Music - The Maghrib						\
+ALL_MEDIA_PNAMES="											\
+	Movies and TV shows - Archive									\
+	Movies and TV shows - Documentaries and programmes						\
+	Movies and TV shows - Video clips								\
+	Music - Flamenco Andaluzí and Middle-eastern arabic music					\
+	Music - Iranian and Kurdish music								\
+	Music - Soul, Jazz, and Latin American Music							\
+	Music - The Maghrib										\
 	Music - Unsorted Music";
-MUSIC_MEDIA_PNAMES="							\
-	Music - Flamenco Andaluzí and Middle-eastern arabic music	\
-	Music - Iranian and Kurdish music				\
-	Music - Soul, Jazz, and Latin American Music			\
-	Music - The Maghrib						\
+MUSIC_MEDIA_PNAMES="											\
+	Music - Flamenco Andaluzí and Middle-eastern arabic music					\
+	Music - Iranian and Kurdish music								\
+	Music - Soul, Jazz, and Latin American Music							\
+	Music - The Maghrib										\
 	Music - Unsorted Music";
 
 rc() {
@@ -29,9 +29,9 @@ do_chmod() {
 	local _nflag="${1}" IFS="	" _old_IFS="${IFS}";
 	for _subdir in ${ALL_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
-		rc "${_nflag}" find "${HOME}/${_subdir}" -type d -not -iname \*.m3u8		\
+		rc "${_nflag}" find "${HOME}/${_subdir}" -type d -not -iname \*.m3u8			\
 			-not -perm 0755 -print -exec chmod 0755 {} \;;
-		rc "${_nflag}" find "${HOME}/${_subdir}" -type f -not -iname \*.m3u8		\
+		rc "${_nflag}" find "${HOME}/${_subdir}" -type f -not -iname \*.m3u8			\
 			-not -perm 0644 -print -exec chmod 0644 {} \;;
 		IFS="	";
 	done;
@@ -42,10 +42,10 @@ do_rsync() {
 	for _subdir in ${ALL_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
 		if [ "${_nflag:-0}" -eq 1 ]; then
-			rc 0 rsync -aiPve ssh --delete --exclude=\*.m3u8			\
+			rc 0 rsync -aiPve ssh --delete --exclude=\*.m3u8				\
 				-n "${HOME}/${_subdir}" lucio@abbad_vpn00.:../lucio_shared;
 		else
-			rc "${_nflag}" rsync -aiPve ssh --delete --exclude=\*.m3u8		\
+			rc "${_nflag}" rsync -aiPve ssh --delete --exclude=\*.m3u8			\
 				"${HOME}/${_subdir}" lucio@abbad_vpn00.:../lucio_shared;
 		fi;
 		IFS="	";
@@ -57,18 +57,18 @@ playlists() {
 	for _subdir in ${MUSIC_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
 		_tmpf_pname="$(mktemp -t "$(basename "${0%.sh}_XXXXXX")")";
-		echo find "${HOME}/${_subdir}" -type f						\
-			\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
-			   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
-			   -iname \*.webm -or -iname \*.wma \)					\
-			-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' \| sort		\
+		echo find "${HOME}/${_subdir}" -type f							\
+			\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or			\
+			   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or			\
+			   -iname \*.webm -or -iname \*.wma \)						\
+			-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' \| sort -g		\
 				\> "${_tmpf_pname}";
 		if [ "${_nflag:-0}" -eq 0 ]; then
-			find "${HOME}/${_subdir}" -type f					\
-				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or	\
-				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or	\
-				   -iname \*.webm -or -iname \*.wma \)				\
-				-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' | sort	\
+			find "${HOME}/${_subdir}" -type f						\
+				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
+				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
+				   -iname \*.webm -or -iname \*.wma \)					\
+				-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' | sort -g	\
 					> "${_tmpf_pname}";
 		fi;
 		rc "${_nflag}" unix2dos "${_tmpf_pname}";
