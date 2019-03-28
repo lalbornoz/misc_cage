@@ -61,7 +61,7 @@ update_host() {
 			printf "%s\n" "${pkgs_rdepends}" >>"${log_fname}";
 			pkgs_rdepends="$(printf "%s\n" "${pkgs_rdepends}"				|
 				sed -ne "/^Reverse Depends:\$/d" -e "/^lib/d" -e "s/^\s\+//" -e "p"	|
-				sort | uniq)";
+				sort | uniq | paste -sd " ")";
 			status "${rc}" rdepends "${pkgs_rdepends}";
 
 			# find /etc -name *.dpkg-new
