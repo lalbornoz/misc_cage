@@ -29,7 +29,7 @@ update_host() {
 	logf "%s:" "${_host}";
 	ssh -l"${_user}" -T "${_host}" '
 		fini() { local _log_fname="${1}"; echo "${rc_last:-0} fini"; cat "${_log_fname}"; rm -f "${_log_fname}"; };
-		init() { dpkg_new_fnames=""; pkgs=""; pkgs_rdepends=""; rc=""; rc_last=""; log_fname="$(mktemp)" || exit 1; };
+		init() { dpkg_new_fnames=""; pkgs=""; pkgs_filtered=""; pkgs_rdepends=""; rc=""; rc_last=""; log_fname="$(mktemp)" || exit 1; };
 		status() { local _rc="${1}"; echo "${*}"; rc_last="${_rc}"; if [ "${_rc}" -ne 0 ]; then exit "${_rc}"; fi; };
 		init; trap "fini \"${log_fname}\"" EXIT HUP INT QUIT TERM USR1 USR2;
 
@@ -43,9 +43,12 @@ update_host() {
 		pkgs="$(printf "%s\n" "${pkgs}"								|
 			awk '\''
 				$0 == "The following packages will be upgraded:" {m=1; next}
-				m {if ($0 !~ /^  /) {m=0} else {print}}'\''				|
+				m {if ($0 !~ /^  /) {m=0} else {print}}'\'')";
+		pkgs_filtered="$(printf "%s\n" "${pkgs}"						|
 			sed -ne "s/  */\n/gp" | sed -ne "/^ *$/d" -e "/^lib/d" -e "p" | paste -sd " ")";
-		status "${rc}" dist-upgrade "${pkgs}";
+		pkgs="$(printf "%s\n" "${pkgs}"						|
+			sed -ne "s/  */\n/gp" | sed -ne "/^ *$/d" -e "p" | paste -sd " ")";
+		status "${rc}" dist-upgrade "${pkgs_filtered}";
 
 		# apt-get -y autoremove --purge
 		apt-get -y autoremove --purge >>"${log_fname}" 2>&1;
@@ -57,7 +60,7 @@ update_host() {
 
 		if [ -n "${pkgs}" ]; then
 			# apt-cache rdepends --installed
-			pkgs_rdepends="$(apt-cache rdepends --installed "${pkgs}" 2>&1)"; rc="${?}";
+			pkgs_rdepends="$(apt-cache rdepends --installed ${pkgs} 2>&1)"; rc="${?}";
 			printf "%s\n" "${pkgs_rdepends}" >>"${log_fname}";
 			pkgs_rdepends="$(printf "%s\n" "${pkgs_rdepends}"				|
 				sed -ne "/^Reverse Depends:\$/d" -e "/^lib/d" -e "s/^\s\+//" -e "p"	|
