@@ -74,7 +74,10 @@ main() {
 	rc "${_log_fname}" "${_nflag}" yum clean all;
 	rc "${_log_fname}" "${_nflag}" yum makecache;
 	rc "${_log_fname}" "${_nflag}" yum install -y ${ELREPO_PACKAGES};
+	rc "${_log_fname}" "${_nflag}" sed -i.dist -e 's/^\(GRUB_CMDLINE_LINUX\)="\(.*\)"$/\1="\2 nvidia.NVreg_EnablePCIeGen3=1"/' /etc/default/grub;
 	set -o errexit;
 };
 
 set -o errexit -o noglob -o nounset; main "${@}";
+
+# vim:tw=0
