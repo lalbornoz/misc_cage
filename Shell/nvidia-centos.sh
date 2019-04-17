@@ -9,6 +9,7 @@ COLOUR_DRY_RUN="[36m"; COLOUR_FAILURE="[91m"; COLOUR_NEUTRAL="[93m";
 COLOUR_RESET="[0m"; COLOUR_SUCCESS="[32m"; COLOUR_TIMESTAMP="[33m";
 TIMESTAMP_FMT="%d-%^b-%Y %H:%M:%S"; TIMESTAMP_LOG_FMT="%H%M%S-%d%m%Y";
 
+CUDA_REPO_URL="https://developer.download.nvidia.com/compute/cuda/repos/rhel7/x86_64/cuda-repo-rhel7-10.1.105-1.x86_64.rpm";
 ELREPO_PACKAGES="kmod-nvidia.x86_64 nvidia-detect.x86_64 nvidia-x11-drv.x86_64";
 ELREPO_URL_KEY="https://www.elrepo.org/RPM-GPG-KEY-elrepo.org";
 ELREPO_URL_RPM="https://www.elrepo.org/elrepo-release-7.0-3.el7.elrepo.noarch.rpm";
@@ -75,6 +76,9 @@ main() {
 	rc "${_log_fname}" "${_nflag}" yum makecache;
 	rc "${_log_fname}" "${_nflag}" yum install -y ${ELREPO_PACKAGES};
 	rc "${_log_fname}" "${_nflag}" sed -i.dist -e 's/^\(GRUB_CMDLINE_LINUX\)="\(.*\)"$/\1="\2 nvidia.NVreg_EnablePCIeGen3=1"/' /etc/default/grub;
+	rc "${_log_fname}" "${_nflag}" yum install -y "${CUDA_REPO_URL}";
+	rc "${_log_fname}" "${_nflag}" yum install -y cuda;
+
 	set -o errexit;
 };
 
