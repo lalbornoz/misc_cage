@@ -61,14 +61,14 @@ playlists() {
 			\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or			\
 			   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or			\
 			   -iname \*.webm -or -iname \*.wma \)						\
-			-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' \| sort -g		\
+			-printf '\\\\LUCIO-VM\\lucio\\'"${_subdir}"'\\%P\n' \| sort -g		\
 				\> "${_tmpf_pname}";
 		if [ "${_nflag:-0}" -eq 0 ]; then
 			find "${HOME}/${_subdir}" -type f						\
 				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
 				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
 				   -iname \*.webm -or -iname \*.wma \)					\
-				-printf '\\\\192.168.1.3\\lucio\\'"${_subdir}"'\\%P\n' | sort -g	\
+				-printf '\\\\LUCIO-VM\\lucio\\'"${_subdir}"'\\%P\n' | sort -g	\
 					> "${_tmpf_pname}";
 		fi;
 		rc "${_nflag}" unix2dos "${_tmpf_pname}";
