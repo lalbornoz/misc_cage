@@ -1,4 +1,4 @@
-# Must be invoked w/ -ExecutionPolicy Bypass
+# Must be invoked w/ -ExecutionPolicy Bypass. Requires Powershell 5.0+.
 
 # {{{ Script entry point & global variables
 param([int]$debug=0, [int]$log=0)
@@ -6,18 +6,21 @@ if ($debug -eq 1) {Set-PSDebug -Trace 2}
 if ($log -eq 1) {Start-Transcript "provision.log"}
 New-PSDrive HKU Registry HKEY_USERS
 
-$CygwinPath="C:\tools\cygwin"
-$StepLimit=14;
-$UserName="lucio"
-$UserSID=(Get-WmiObject win32_useraccount | Where-Object -EQ -Property "name" -Value $UserName).SID
-$UserProfile="C:\Users\$UserName"
+$AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
+$CygwinPath = "C:\tools\cygwin"
+$PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install mpc-hc mumble processhacker putty.install rufus speedfan sysinternals thunderbird tor-browser vim vlc vscode wireshark"
+$PackagesCygwin = "gcc,git,mingw64-x86_64-gcc-core,openssh,perl-URI,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget"
+$StepLimit = 14;
+$UserName = "lucio"
+$UserSID = (Get-WmiObject win32_useraccount | Where-Object -EQ -Property "name" -Value $UserName).SID
+$UserProfile = "C:\Users\$UserName"
 # }}}
 # {{{ Private functions
 function bytesToLong {
 	([long]$args[0][3] -shl 24) -bor ([long]$args[0][2] -shl 16) -bor ([long]$args[0][1] -shl 8) -bor [long]$args[0][0]
 }
 
-$StepCur=0;
+$StepCur = 0;
 function progress {
 	Write-Progress -Activity "Provisioning" -Id 0 -PercentComplete ($global:StepCur / $StepLimit * 100) -Status ("Step " + ($global:StepCur + 1) + " of $StepLimit | " + $args[0])
 	$args[1].Invoke(); $global:StepCur++;
@@ -61,26 +64,45 @@ progress "Add {Arabic (Jordan),German (Germany),English (UK),Spanish (Chile)} ke
 	Set-ItemProperty -Name "Layout Hotkey" -Path "HKU:$UserSID\Keyboard Layout\Toggle" -Value 3
 }
 # }}}
-# {{{ Allow creation of symbolic links, pre-configure Cygwin to always create native symbolic links
-progress "Allow creation of symbolic links, pre-configure Cygwin to always create native symbolic links" {
+# {{{ Allow creation of symbolic links
+progress "Allow creation of symbolic links" {
 	Add-LocalGroupMember -Group "Users" -Member "lucio"
 	Remove-LocalGroupMember -Group "Administrators" -Member "lucio"
 	Remove-LocalGroupMember -Group "HomeUsers" -Member "lucio"
 	Enable-LocalUser -Name Administrator
-	Set-LocalUser -Name Administrator -Password (Read-Host -AsSecureString "Enter new password for Administrator")
+	Set-LocalUser -Name Administrator -Password $AdministratorPassword
 	secedit /export /cfg "secpol.cfg"
 	 (gc secpol.cfg).replace('SeCreateSymbolicLinkPrivilege = ', 'SeCreateSymbolicLinkPrivilege = lucio, ') | Out-File "secpol.cfg"
 	 secedit /configure /db "$env:windir\security\local.sdb" /cfg "secpol.cfg"
 	Remove-Item "secpol.cfg"
-	New-ItemProperty -Name "CYGWIN" -Path "HKU:$UserSID\\Environment" -Type String -Value "winsymlinks:native"
+	#New-ItemProperty -Name "CYGWIN" -Path "HKU:$UserSID\Environment" -Type String -Value "winsymlinks:native"
 }
 # }}}
-# {{{ Configure recycle bin, screensaver, and taskbar local group policies
-progress "Configure BitLocker, recycle bin, screensaver & taskbar local group policies" {
+# {{{ Configure accessibility, case sensitivity, Explorer & taskbar registry settings
+progress "Configure accessibility, Explorer & taskbar registry settings" {
+	$settings = (Get-ItemProperty -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StuckRects2").Settings
+	$settings[8] = 0x03
+	New-ItemProperty -Force -Name "Hidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
+	New-ItemProperty -Force -Name "HideFileExt" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 0
+	Set-ItemProperty -Name "obcaseinsensitive" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Kernel" -Value 0
+	New-ItemProperty -Force -Name "On" -Path "HKU:$UserSID\Control Panel\Accessibility\Keyboard Preference" -Type String -Value "1"
+	Set-ItemProperty -Name "Settings" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StuckRects2" -Value $settings
+	New-ItemProperty -Force -Name "ShowSuperHidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
+	Set-ItemProperty -Name "TaskbarSmallIcons" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 1
+	Set-ItemProperty -Name "TaskbarGlomLevel" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 2
+	Stop-Process -Force -ProcessName explorer
+}
+# }}}
+# {{{ Configure Autoplay, BitLocker, recycle bin, Remote Assistance, screensaver & taskbar local group policies
+progress "Configure Autoplay, BitLocker, recycle bin, Remote Assistance, screensaver & taskbar local group policies" {
+	Set-PolicyFileEntry -Data 255 -Key "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type DWord -ValueName "NoDriveTypeAutoRun"
 	Set-PolicyFileEntry -Data "" -Key "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Path "$env:windir\System32\GroupPolicy\User\Registry.pol" -Type String -ValueName "**del.LockTaskbar"
 	Set-PolicyFileEntry -Data 1 -Key "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Path "$env:windir\System32\GroupPolicy\User\Registry.pol" -Type DWord -ValueName "ConfirmFileDelete"
 	Set-PolicyFileEntry -Data 1 -Key "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Path "$env:windir\System32\GroupPolicy\User\Registry.pol" -Type DWord -ValueName "HideSCAHealth"
 	Set-PolicyFileEntry -Data 1 -Key "Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" -Path "$env:windir\System32\GroupPolicy\User\Registry.pol" -Type DWord -ValueName "NoRecycleFiles"
+	Set-PolicyFileEntry -Data "" -Key "Software\Microsoft\Windows NT\Terminal Services" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type String -ValueName "**del.fAllowUnsolicitedFullControl"
+	Set-PolicyFileEntry -Data 0 -Key "Software\Microsoft\Windows NT\Terminal Services" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type DWord -ValueName "fAllowUnsolicited"
+	Set-PolicyFileEntry -Data "" -Key "Software\Microsoft\Windows NT\Terminal Services\RAUnsolicit" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type String -ValueName "**delvals."
 	Set-PolicyFileEntry -Data 1 -Key "Software\Policies\Microsoft\FVE" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type DWord -ValueName "EnableBDEWithNoTPM"
 	Set-PolicyFileEntry -Data 1 -Key "Software\Policies\Microsoft\FVE" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type DWord -ValueName "UseAdvancedStartup"
 	Set-PolicyFileEntry -Data 2 -Key "Software\Policies\Microsoft\FVE" -Path "$env:windir\System32\GroupPolicy\Machine\Registry.pol" -Type DWord -ValueName "UseTPM"
@@ -94,20 +116,6 @@ progress "Configure BitLocker, recycle bin, screensaver & taskbar local group po
 	Stop-Process -Force -ProcessName explorer
 }
 # }}}
-# {{{ Configure case sensitivity, Explorer & taskbar registry settings
-progress "Configure Explorer & taskbar registry settings" {
-	$settings = (Get-ItemProperty -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StuckRects2").Settings
-	$settings[8] = 0x03
-	New-ItemProperty -Force -Name "Hidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
-	New-ItemProperty -Force -Name "HideFileExt" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 0
-	Set-ItemProperty -Name "obcaseinsensitive" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Kernel" -Value 0
-	Set-ItemProperty -Name "Settings" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StuckRects2" -Value $settings
-	New-ItemProperty -Force -Name "ShowSuperHidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
-	Set-ItemProperty -Name "TaskbarSmallIcons" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 1
-	Set-ItemProperty -Name "TaskbarGlomLevel" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 2
-	Stop-Process -Force -ProcessName explorer
-}
-# }}}
 # {{{ Configure Windows Update
 progress "Configure Windows Update" {
 	$AUSettings = (New-Object -com "Microsoft.Update.AutoUpdate").Settings
@@ -115,13 +123,14 @@ progress "Configure Windows Update" {
 	$AUSettings.Save
 }
 # }}}
-# {{{ Disable Windows Defender real-time protection, AUSessionConnect task & Windows {Media Player Network Sharing,Search} services, unshare C:\Users
-progress "Disable Windows Defender real-time protection, AUSessionConnect task & Windows {Media Player Network Sharing,Search} services, unshare C:\Users" {
-	Set-MpPreference -DisableRealtimeMonitoring $true
+# {{{ Disable AUSessionConnect task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection
+progress "Disable AUSessionConnect task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection" {
 	Disable-ScheduledTask -TaskName "\Microsoft\Windows\WindowsUpdate\AUSessionConnect"
-	Set-Service WMPNetworkSvc -StartupType Disabled; Stop-Service "WMPNetworkSvc";
-	Set-Service WSearch -StartupType Disabled; Stop-Service "WSearch";
 	Remove-SmbShare -Force -Name "Users"
+	"DeviceAssociationService", "HomeGroupListener", "HomeGroupProvider", "WMPNetworkSvc", "WSearch" | ForEach {
+		Set-Service $_ -StartupType Disabled; Stop-Service $_;
+	}
+	Set-MpPreference -DisableRealtimeMonitoring $true
 }
 # }}}
 # {{{ Force 8.8.{4.4,8.8} DNS servers
@@ -137,8 +146,9 @@ progress "Prevent installed devices from waking up PC" {
 # {{{ Register scheduled task to automatically create daily restore point & set unbounded maximum shadow copy storage space limit on all local volumes
 progress "Register scheduled task to automatically create daily restore point & set unbounded maximum shadow copy storage space limit on all local volumes" {
 	$action = New-ScheduledTaskAction -Argument "-ExecutionPolicy Bypass -Command `"Checkpoint-Computer -Description \`"Daily restore point\`" -RestorePointType \`"MODIFY_SETTINGS\`"`"" -Execute "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
+	$principal = New-ScheduledTaskPrincipal -LogonType ServiceAccount -RunLevel Highest -UserID "NT AUTHORITY\SYSTEM"
 	$trigger = New-ScheduledTaskTrigger -At 8pm -Daily
-	Register-ScheduledTask -Action $action -Description "Create daily restore point" -TaskName "Create daily restore point" -Trigger $trigger
+	Register-ScheduledTask -Action $action -Description "Create daily restore point" -Principal $principal -TaskName "Create daily restore point" -Trigger $trigger
 	Get-Volume | Where-Object -NE -Property "DriveLetter" -Value (0x00 -as [char]) |
 		ForEach {$dl = ($_.DriveLetter + ":"); vssadmin Resize ShadowStorage /For=$dl /On=$dl /MaxSize=UNBOUNDED}
 }
@@ -147,29 +157,31 @@ progress "Register scheduled task to automatically create daily restore point & 
 progress "Install Chocolatey and Windows packages w/ Chocolatey" {
 	Invoke-Expression ((New-Object System.Net.WebClient).DownloadString("https://chocolatey.org/install.ps1"))
 	do {
-		& "$env:ALLUSERSPROFILE\chocolatey\bin\choco" install -y			`
-			7zip.install audacity audacity-lame bleachbit classic-shell		`
-			Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader	`
-			hashcheck keepass.install mpc-hc mumble processhacker putty.install	`
-			rufus shadowexplorer speedfan sysinternals thunderbird tor-browser	`
-			vim vscode wireshark
+		& "$env:ALLUSERSPROFILE\chocolatey\bin\choco" install -y $PackagesChocolatey
 	} while ($LastExitCode -ne 0)
 }
 # }}}
-# {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, and enforce posix=1 for /cygdrive in Cygwin
-progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, and enforce posix=1 for /cygdrive in Cygwin" {
-	& "$CygwinPath\cygwinsetup" -q -P gcc,git,mingw64-x86_64-gcc-core,openssh,perl-URI,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget
-	while (!(Test-Path "$CygwinPath\etc\defaults\etc\sshd_config")) { Start-Sleep -Seconds 5; }
+# {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin & correct {$PATH,%Path%}
+progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin & correct %Path%" {
+	& "$CygwinPath\cygwinsetup" -nqWP $PackagesCygwin
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/^#\?\(Hostbased\|Password\|ChallengeResponse\|Kerberos\|GSSAPI\)Authentication\s\+\(yes\|no\)\s*$/\1Authentication no/' -e 's/^#\?PubkeyAuthentication\s\+\(yes\|no\)\s*$/PubkeyAuthentication yes/' /etc/defaults/etc/sshd_config
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/posix=0/posix=1/' /etc/fstab
+	& "$CygwinPath\bin\sed" '-i.dist' -e 's,^\(\s*PATH="\)\(.\+\),\1/bin:\2,p' /etc/profile /etc/zprofile
+	$Path = (Get-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment").Path
+	$Path.Replace("\Windows\system32", "\Windows\System32")
+	Set-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Value $Path
 }
 # }}}
-# {{{ Place {foobar2000,Pageant,SpeedFan,Thunderbird,TurboTop} into Startup group
-progress "Place {foobar2000,Pageant,SpeedFan,Thunderbird,TurboTop} into Startup group" {
+# {{{ Place {foobar2000,Pageant,Thunderbird} into Startup group & setup SpeedFan autostart scheduled task
+progress "Place {foobar2000,Pageant,Thunderbird} into Startup group & setup SpeedFan autostart scheduled task" {
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\foobar2000.lnk"
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PuTTY (64-bit)\Pageant.lnk"
-	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\SpeedFan\SpeedFan.lnk"
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Mozilla Thunderbird.lnk"
+
+	$action = New-ScheduledTaskAction -Argument "-NoProfile -Command `"Start-Process 'C:\Program Files (x86)\SpeedFan\speedfan.exe' -Credential (New-Object System.Management.Automation.PSCredential Administrator, " + (ConvertFrom-SecureString $AdministratorPassword) + ")`"" -Execute "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
+	$principal = New-ScheduledTaskPrincipal -RunLevel Highest -UserID $UserName
+	$trigger = New-ScheduledTaskTrigger -AtLogOn
+	Register-ScheduledTask -Action $action -Description "SpeedFan" -Principal $principal -TaskName "SpeedFan" -Trigger $trigger
 }
 # }}}
 # {{{ Set Documents folder location to $CygwinPath\home\$UserName
@@ -186,8 +198,8 @@ progress "Set Documents folder location to $CygwinPath\home\$UserName" {
 # }}}
 
 # {{{ Restart computer
-switch (Read-Host "Reboot (Y|n)") {
-"y" {Restart-Computer}
+switch -Regex (Read-Host "Reboot (Y|n)") {
+'^y?$' {Restart-Computer}
 }
 # }}}
 
