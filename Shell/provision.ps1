@@ -69,8 +69,9 @@ progress "Allow creation of symbolic links" {
 	Add-LocalGroupMember -Group "Users" -Member "lucio"
 	Remove-LocalGroupMember -Group "Administrators" -Member "lucio"
 	Remove-LocalGroupMember -Group "HomeUsers" -Member "lucio"
-	Enable-LocalUser -Name Administrator
-	Set-LocalUser -Name Administrator -Password $AdministratorPassword
+	Enable-LocalUser -Name "Administrator"
+	Set-LocalUser -Name "Administrator" -Password $AdministratorPassword
+	Rename-LocalUser "Administrator" "root"
 	secedit /export /cfg "secpol.cfg"
 	 (gc secpol.cfg).replace('SeCreateSymbolicLinkPrivilege = ', 'SeCreateSymbolicLinkPrivilege = lucio, ') | Out-File "secpol.cfg"
 	 secedit /configure /db "$env:windir\security\local.sdb" /cfg "secpol.cfg"
@@ -161,8 +162,8 @@ progress "Install Chocolatey and Windows packages w/ Chocolatey" {
 	} while ($LastExitCode -ne 0)
 }
 # }}}
-# {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin & correct {$PATH,%Path%}
-progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin & correct %Path%" {
+# {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct {$PATH,%Path%} & hide Cygwin SSH user in UAC prompt
+progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct %Path% & hide Cygwin SSH user in UAC prompt" {
 	& "$CygwinPath\cygwinsetup" -nqWP $PackagesCygwin
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/^#\?\(Hostbased\|Password\|ChallengeResponse\|Kerberos\|GSSAPI\)Authentication\s\+\(yes\|no\)\s*$/\1Authentication no/' -e 's/^#\?PubkeyAuthentication\s\+\(yes\|no\)\s*$/PubkeyAuthentication yes/' /etc/defaults/etc/sshd_config
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/posix=0/posix=1/' /etc/fstab
@@ -170,6 +171,7 @@ progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, e
 	$Path = (Get-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment").Path
 	$Path.Replace("\Windows\system32", "\Windows\System32")
 	Set-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Value $Path
+	New-ItemProperty -Force -Name "cyg_server" -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList" -Type DWord -Value 0
 }
 # }}}
 # {{{ Place {foobar2000,Pageant,Thunderbird} into Startup group & setup SpeedFan autostart scheduled task
@@ -178,7 +180,7 @@ progress "Place {foobar2000,Pageant,Thunderbird} into Startup group & setup Spee
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PuTTY (64-bit)\Pageant.lnk"
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Mozilla Thunderbird.lnk"
 
-	$action = New-ScheduledTaskAction -Argument "-NoProfile -Command `"Start-Process 'C:\Program Files (x86)\SpeedFan\speedfan.exe' -Credential (New-Object System.Management.Automation.PSCredential Administrator, " + (ConvertFrom-SecureString $AdministratorPassword) + ")`"" -Execute "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
+	$action = New-ScheduledTaskAction -Argument "-NoProfile -Command `"Start-Process 'C:\Program Files (x86)\SpeedFan\speedfan.exe' -Credential (New-Object System.Management.Automation.PSCredential root, " + (ConvertFrom-SecureString $AdministratorPassword) + ")`"" -Execute "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
 	$principal = New-ScheduledTaskPrincipal -RunLevel Highest -UserID $UserName
 	$trigger = New-ScheduledTaskTrigger -AtLogOn
 	Register-ScheduledTask -Action $action -Description "SpeedFan" -Principal $principal -TaskName "SpeedFan" -Trigger $trigger
