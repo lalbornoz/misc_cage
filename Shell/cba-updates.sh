@@ -70,7 +70,7 @@ update_host() {
 			# find /etc -name *.dpkg-new
 			dpkg_new_fnames="$(find /etc -name *.dpkg-new 2>/dev/null)";
 			status "${?}" dpkg-new "${dpkg_new_fnames}";
-		fi' |\
+		fi' 2>/dev/null |\
 	while read -r _rc _type _msg; do
 	case "${_type}" in
 	autoremove|clean|update)

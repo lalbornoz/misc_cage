@@ -9,7 +9,7 @@ New-PSDrive HKU Registry HKEY_USERS
 $AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
 $CygwinPath = "C:\tools\cygwin"
 $PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install mpc-hc mumble processhacker putty.install rufus speedfan sysinternals thunderbird tor-browser vim vscode wireshark"
-$PackagesCygwin = "gcc,git,mingw64-x86_64-gcc-core,openssh,perl-URI,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget"
+$PackagesCygwin = "bind-utils,curl,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,nc,openssh,openssl,perl-URI,procps-ng,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget,whois"
 $StepLimit = 14;
 $UserName = "lucio"
 $UserSID = (Get-WmiObject win32_useraccount | Where-Object -EQ -Property "name" -Value $UserName).SID
@@ -79,8 +79,8 @@ progress "Allow creation of symbolic links" {
 	#New-ItemProperty -Name "CYGWIN" -Path "HKU:$UserSID\Environment" -Type String -Value "winsymlinks:native"
 }
 # }}}
-# {{{ Configure accessibility, case sensitivity, Explorer & taskbar registry settings
-progress "Configure accessibility, Explorer & taskbar registry settings" {
+# {{{ Configure accessibility, case sensitivity, Explorer, taskbar & VSS registry settings
+progress "Configure accessibility, Explorer, taskbar & VSS registry settings" {
 	$settings = (Get-ItemProperty -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StuckRects2").Settings
 	$settings[8] = 0x03
 	New-ItemProperty -Force -Name "Hidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
@@ -91,6 +91,7 @@ progress "Configure accessibility, Explorer & taskbar registry settings" {
 	New-ItemProperty -Force -Name "ShowSuperHidden" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Type DWord -Value 1
 	Set-ItemProperty -Name "TaskbarSmallIcons" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 1
 	Set-ItemProperty -Name "TaskbarGlomLevel" -Path "HKU:$UserSID\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Value 2
+	New-ItemProperty -Force -Name "SystemRestorePointCreationFrequency" -Path "HKLM:Software\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Type DWord -Value 0
 	Stop-Process -Force -ProcessName explorer
 }
 # }}}
