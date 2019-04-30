@@ -77,14 +77,15 @@ update_host() {
 			printf_rc "${_rc}" " %s" "${_type}"; ;;
 	dist-upgrade|dpkg-new|rdepends)
 			printf_rc "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
-	fini)		if [ "${_lflag:-0}" -eq 1 ]\
-			|| [ "${_rc}" -ne 0 ]; then
-				printf_rc "${_rc}" " %s" "[fetching log]";
+	fini)		printf_rc "${_rc}" " %s" "[fetching log]";
+			if [ "${_lflag:-0}" -eq 0 ]; then
+				_log_fname="/dev/null";
+			else
 				touch "${_log_fname}";
-				while IFS= read -r _log_data; do
-					printf "%s\n" "${_log_data}" >>"${_log_fname}";
-				done;
-			fi; break; ;;
+			fi;
+			while IFS= read -r _log_data; do
+				printf "%s\n" "${_log_data}" >>"${_log_fname}";
+			done; break; ;;
 	*)		printf " [${DEFAULT_COLOUR_FAILURE}m?[0m"; break; ;;
 	esac; done; printf ".\n";
 };

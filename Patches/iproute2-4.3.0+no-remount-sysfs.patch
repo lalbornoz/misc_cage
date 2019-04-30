@@ -19,10 +19,10 @@
 + 
 + 	/* Setup bind mounts for config files in /etc */
 + 	bind_etc(name);
---- iproute2-4.3.0/debian/patches/series.dist	2017-12-04 18:03:46.000000000 +0100
-+++ iproute2-4.3.0/debian/patches/series	2018-01-26 20:12:37.145858780 +0100
-@@ -9,3 +9,4 @@
- 1005-ip-maddr-fix-igmp-parsing.patch
- 1006-ip-maddr-avoid-uninitialized-data.patch
- 1007-ip-maddr-fix-filtering-by-device.patch
+--- iproute2-4.3.0/debian/patches/series.orig	2019-04-30 19:55:02.449548936 +0200
++++ iproute2-4.3.0/debian/patches/series	2019-04-30 19:55:28.168282371 +0200
+@@ -13,3 +13,4 @@
+ 1009-vf_trust_b6d77d9ee312.patch
+ 1010-vf_trust_fe9322781e63.patch
+ 1011-tc-Add-support-for-the-matchall-traffic-classifier.patch
 +9999-no-remount-sysfs.patch
