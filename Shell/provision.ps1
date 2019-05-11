@@ -8,7 +8,7 @@ New-PSDrive HKU Registry HKEY_USERS
 
 $AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
 $CygwinPath = "C:\tools\cygwin"
-$PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install mpc-hc mumble PDFCreator processhacker putty.install python3 rufus speedfan sshfs sysinternals thunderbird tor-browser vim vscode wireshark"
+$PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install mpc-hc mumble openvpn PDFCreator processhacker putty.install python3 rufus speedfan sshfs sysinternals thunderbird tor-browser vim vscode wireshark"
 $PackagesCygwin = "bind-utils,curl,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,nc,openssh,openssl,patch,perl-URI,procps-ng,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget,whois"
 $StepLimit = 14;
 $UserName = "lucio"
