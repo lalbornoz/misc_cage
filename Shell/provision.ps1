@@ -8,7 +8,7 @@ New-PSDrive HKU Registry HKEY_USERS
 
 $AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
 $CygwinPath = "C:\tools\cygwin"
-$PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install mpc-hc mumble openvpn PDFCreator processhacker putty.install python3 rufus speedfan sshfs sysinternals thunderbird tor-browser vim vscode wireshark"
+$PackagesChocolatey = "7zip.install audacity audacity-lame bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install nvidia-display-driver mpc-hc mumble openvpn PDFCreator processhacker putty.install python3 rufus speedfan sysinternals thunderbird tor-browser vim vscode winfsp wireshark"
 $PackagesCygwin = "bind-utils,curl,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,nc,openssh,openssl,patch,perl-URI,procps-ng,python2,python3,rsync,ssh-pageant,tmux,zsh,vim,wget,whois"
 $StepLimit = 14;
 $UserName = "lucio"
@@ -181,6 +181,7 @@ progress "Place {foobar2000,Pageant,Thunderbird} into Startup group & setup Spee
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PuTTY (64-bit)\Pageant.lnk"
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Mozilla Thunderbird.lnk"
 
+	# XXX insecure
 	$action = New-ScheduledTaskAction -Argument "-NoProfile -Command `"Start-Process 'C:\Program Files (x86)\SpeedFan\speedfan.exe' -Credential (New-Object System.Management.Automation.PSCredential root, " + (ConvertFrom-SecureString $AdministratorPassword) + ")`"" -Execute "$env:windir\System32\WindowsPowerShell\v1.0\powershell.exe"
 	$principal = New-ScheduledTaskPrincipal -RunLevel Highest -UserID $UserName
 	$trigger = New-ScheduledTaskTrigger -AtLogOn
