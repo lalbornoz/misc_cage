@@ -86,7 +86,7 @@ update_host() {
 			while IFS= read -r _log_data; do
 				printf "%s\n" "${_log_data}" >>"${_log_fname}";
 			done; break; ;;
-	*)		printf " [${DEFAULT_COLOUR_FAILURE}m?[0m"; break; ;;
+	*)		printf " [${DEFAULT_COLOUR_FAILURE}m?(rc=%s,type=%s,msg=%s)[0m" "${_rc}" "${_type}" "${_msg}"; break; ;;
 	esac; done; printf ".\n";
 };
 
