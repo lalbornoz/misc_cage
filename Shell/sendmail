@@ -1,0 +1,8 @@
+#!/bin/sh
+
+main() {
+	local _local_addr="$(wget -qO- "https://api.ipify.org?format=text")";
+	exec /usr/sbin/msmtp --auto-from=on --maildomain="${_local_addr}" "${@}";
+};
+
+set -o errexit -o noglob -o nounset; main "${@}";
