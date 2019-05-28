@@ -4,6 +4,7 @@
 DEFAULT_COLOUR_DIST_UPGRADE="94";
 DEFAULT_COLOUR_FAILURE="91";
 DEFAULT_COLOUR_RDEPENDS="96";
+DEFAULT_COLOUR_SERVICES="93";
 DEFAULT_COLOUR_SUCCESS="32";
 DEFAULT_COLOUR_TIMESTAMP="33";
 DEFAULT_USER="toor";
@@ -11,7 +12,7 @@ DEFAULT_USER="toor";
 # {{{ Remote script variable
 REMOTE_SCRIPT='
 	fini() { local _log_fname="${1}"; echo "${rc_last:-0} fini"; cat "${_log_fname}"; rm -f "${_log_fname}"; };
-	init() { dpkg_new_fnames=""; pkgs=""; pkgs_rdepends=""; rc=""; rc_last=""; log_fname="$(mktemp)" || exit 1; };
+	init() { dpkg_new_fnames=""; pkgs=""; pkgs_rdepends=""; pkgs_rdepends_services=""; rc=""; rc_last=""; log_fname="$(mktemp)" || exit 1; };
 	status() { local _rc="${1}"; echo "${*}"; rc_last="${_rc}"; if [ "${_rc}" -ne 0 ]; then exit "${_rc}"; fi; };
 	init; trap "fini \"${log_fname}\"" EXIT HUP INT QUIT TERM USR1 USR2;
 
@@ -47,9 +48,22 @@ REMOTE_SCRIPT='
 			sort | uniq | paste -sd " ")";
 		status "${rc}" rdepends "${pkgs_rdepends}";
 
+		# dpkg -l [ ... ] | grep -Eq "^(/etc/init.d|/lib/systemd/system)/"
+		for pkg in ${pkg_rdepends}; do
+			if dpkg -l "${pkg}" 2>>"${log_fname}"						|
+			   grep -Eq "^(/etc/init.d|/lib/systemd/system)/"; then
+				pkgs_rdepends_services="${pkgs_rdepends_services:+${pkgs_rdepends_services} ${pkg}}";
+			fi;
+		done;
+		if [ -n "${pkgs_rdepends_services}" ]; then
+			status "${rc}" services "${pkgs_rdepends_services}";
+		fi;
+
 		# find /etc -name *.dpkg-new
 		dpkg_new_fnames="$(find /etc -name *.dpkg-new 2>/dev/null)";
-		status "${?}" dpkg-new "${dpkg_new_fnames}";
+		if [ -n "${dpkg_new_fnames}" ]; then
+			status "${?}" dpkg-new "${dpkg_new_fnames}";
+		fi;
 	fi';
 # }}}
 # {{{ Private subroutines
@@ -85,6 +99,8 @@ update_host() {
 			printf_rc "" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
 	rdepends)
 			printf_rc "${DEFAULT_COLOUR_RDEPENDS}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+	services)
+			printf_rc "${DEFAULT_COLOUR_SERVICES}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
 	update)
 			printf_rc "" "${_rc}" " %s" "${_type}"; ;;
 	fini)		printf_rc "" "${_rc}" " %s" "[fetching log]";
