@@ -123,7 +123,7 @@ usage() {
 };
 
 main() {
-	local _host="" _lflag=0 _msg="" _opt="" _rc="" _type="" _user="${DEFAULT_USER}";
+	local _host="" _hosts="" _lflag=0 _msg="" _opt="" _rc="" _type="" _user="${DEFAULT_USER}";
 	while getopts hlu: _opt; do
 	case "${_opt}" in
 	h)	usage; exit 0; ;;
@@ -131,7 +131,12 @@ main() {
 	u)	_user="${OPTARG}"; ;;
 	*)	usage; exit 1; ;;
 	esac; done; shift $((${OPTIND}-1));
-	for _host in "${@}"; do
+	if [ -e "${HOME}/.cba-updates.hosts" ]; then
+		_hosts="$(cat "${HOME}/.cba-updates.hosts")";
+	else
+		_hosts="${*}";
+	fi;
+	for _host in ${_hosts}; do
 		update_host "${_host}" "${_lflag}" "${_user}";
 	done;
 };
