@@ -4,7 +4,7 @@
 #
 
 [ $# -ne 2 ] && { printf "usage: $0 target name\n" ; exit 1; };
-cmd.exe /c mklink /j "${1}" "${2}";
+cmd.exe /c mklink /j "${1}" "$(cygpath -w "${2}")";
 
 # vim:ts=8 sw=8 tw=150 noexpandtab foldmethod=marker
 # vim:fileencoding=utf-8
