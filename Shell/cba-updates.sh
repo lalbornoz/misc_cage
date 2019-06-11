@@ -52,7 +52,7 @@ REMOTE_SCRIPT='
 		for pkg in ${pkgs_rdepends}; do
 			if dpkg -L "${pkg}" 2>>"${log_fname}"						|
 			   grep -Eq "^(/etc/init.d|/lib/systemd/system)/"; then
-				pkgs_rdepends_services="${pkgs_rdepends_services:+${pkgs_rdepends_services} ${pkg}}";
+				pkgs_rdepends_services="${pkgs_rdepends_services:+${pkgs_rdepends_services} }${pkg}";
 			fi;
 		done;
 		if [ -n "${pkgs_rdepends_services}" ]; then
