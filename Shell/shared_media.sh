@@ -53,7 +53,7 @@ do_rsync() {
 };
 
 playlists() {
-	local _nflag="${1}" _subdir="" _tmpf_pname="" IFS="	" _old_IFS="${IFS}";
+	local _nflag="${1}" _prefix="$(cygpath -m /)" _subdir="" _tmpf_pname="" IFS="	" _old_IFS="${IFS}";
 	for _subdir in ${MUSIC_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
 		_tmpf_pname="$(mktemp -t "$(basename "${0%.sh}_XXXXXX")")";
@@ -68,13 +68,13 @@ playlists() {
 				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
 				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
 				   -iname \*.webm -or -iname \*.wma \)					\
-				-printf '\\\\?\\E:\\'"${_subdir}"'\\%P\n' | sort -g			\
+				-printf "${HOME}/${_subdir}"'\\%P\n' | sort -g				\
 					> "${_tmpf_pname}";
 		fi;
 		rc "${_nflag}" unix2dos "${_tmpf_pname}";
-		rc "${_nflag}" sed -i'' 's,/,\\,g' "${_tmpf_pname}";
+		rc "${_nflag}" sed -i'' -e 's,^,//?/'"${_prefix}"',' -e 's,/,\\,g' "${_tmpf_pname}";
 		rc "${_nflag}" sed -i'' '1s/^/\xef\xbb\xbf/' "${_tmpf_pname}";
-		rc "${_nflag}" mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir#* - }.m3u8";
+		rc "${_nflag}" mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir#* - }.$(hostname).m3u8";
 		if [ "${_nflag:-0}" -eq 1 ]; then
 			rm -f "${_tmpf_pname}";
 		fi;
