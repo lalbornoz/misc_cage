@@ -60,7 +60,7 @@ REMOTE_SCRIPT='
 		fi;
 
 		# find /etc -name *.dpkg-new
-		dpkg_new_fnames="$(find /etc -name *.dpkg-new 2>/dev/null)";
+		dpkg_new_fnames="$(find /etc -name *.dpkg-new 2>/dev/null | paste -d " " -s)";
 		if [ -n "${dpkg_new_fnames}" ]; then
 			status "${?}" dpkg-new "${dpkg_new_fnames}";
 		fi;
