@@ -125,9 +125,12 @@ progress "Configure Windows Update" {
 	$AUSettings.Save
 }
 # }}}
-# {{{ Disable AUSessionConnect task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection
-progress "Disable AUSessionConnect task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection" {
+# {{{ Disable {AitAgent,AUSessionConnect,Microsoft Compatibility Appraiser,ProgramDataUpdater} task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection
+progress "Disable {AitAgent,AUSessionConnect,Microsoft Compatibility Appraiser,ProgramDataUpdater} task, C:\Users share, {Device Association Service,Windows {Media Player Network Sharing,Search}} services & Windows Defender real-time protection" {
+	Disable-ScheduledTask -TaskName "\Microsoft\Windows\Application Experience\AitAgent"
 	Disable-ScheduledTask -TaskName "\Microsoft\Windows\WindowsUpdate\AUSessionConnect"
+	Disable-ScheduledTask -TaskName "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser"
+	Disable-ScheduledTask -TaskName "\Microsoft\Windows\Application Experience\ProgramDataUpdater"
 	Remove-SmbShare -Force -Name "Users"
 	"DeviceAssociationService", "HomeGroupListener", "HomeGroupProvider", "WMPNetworkSvc", "WSearch" | ForEach {
 		Set-Service $_ -StartupType Disabled; Stop-Service $_;
