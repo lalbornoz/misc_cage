@@ -57,12 +57,6 @@ playlists() {
 	for _subdir in ${MUSIC_MEDIA_PNAMES}; do
 		IFS="${_old_IFS}";
 		_tmpf_pname="$(mktemp -t "$(basename "${0%.sh}_XXXXXX")")";
-		echo find "${HOME}/${_subdir}" -type f							\
-			\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or			\
-			   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or			\
-			   -iname \*.webm -or -iname \*.wma \)						\
-			-printf '\\\\?\\E:\\'"${_subdir}"'\\%P\n' \| sort -g				\
-				\> "${_tmpf_pname}";
 		if [ "${_nflag:-0}" -eq 0 ]; then
 			find "${HOME}/${_subdir}" -type f						\
 				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
@@ -72,7 +66,8 @@ playlists() {
 					> "${_tmpf_pname}";
 		fi;
 		rc "${_nflag}" unix2dos "${_tmpf_pname}";
-		rc "${_nflag}" sed -i'' -e 's,^,//?/'"${_prefix}"',' -e 's,/,\\,g' "${_tmpf_pname}";
+		rc "${_nflag}" sed -i'' -e '/^\/cygdrive/s,^/cygdrive/\([a-zA-Z]\)/,//?/\1:/,' -e t -e '/^\/cygdrive/!s,^,//?/'"${_prefix}"',' "${_tmpf_pname}";
+		rc "${_nflag}" sed -i'' -e 's,/,\\,g' "${_tmpf_pname}";
 		rc "${_nflag}" sed -i'' '1s/^/\xef\xbb\xbf/' "${_tmpf_pname}";
 		rc "${_nflag}" mv "${_tmpf_pname}" "${HOME}/${_subdir}/${_subdir#* - }.$(hostname).m3u8";
 		if [ "${_nflag:-0}" -eq 1 ]; then
