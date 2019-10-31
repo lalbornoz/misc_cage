@@ -6,12 +6,14 @@ ALL_MEDIA_PNAMES="											\
 	Movies and TV shows - Documentaries and programmes						\
 	Movies and TV shows - Video clips								\
 	Music - Flamenco Andaluzí and Middle-eastern arabic music					\
+	Music - Hip hop											\
 	Music - Iranian and Kurdish music								\
 	Music - Soul, Jazz, and Latin American Music							\
 	Music - The Maghrib										\
 	Music - Unsorted Music";
 MUSIC_MEDIA_PNAMES="											\
 	Music - Flamenco Andaluzí and Middle-eastern arabic music					\
+	Music - Hip hop											\
 	Music - Iranian and Kurdish music								\
 	Music - Soul, Jazz, and Latin American Music							\
 	Music - The Maghrib										\
@@ -59,7 +61,7 @@ playlists() {
 		_tmpf_pname="$(mktemp -t "$(basename "${0%.sh}_XXXXXX")")";
 		if [ "${_nflag:-0}" -eq 0 ]; then
 			find "${HOME}/${_subdir}" -type f						\
-				\( -iname \*.ape -or -iname \*.cue -or -iname \*.mp3 -or		\
+				\( -iname \*.ape -or -iname \*.flac -or -iname \*.mp3 -or		\
 				   -iname \*.mp4 -or -iname \*.mkv -or -iname \*.mpc -or		\
 				   -iname \*.webm -or -iname \*.wma \)					\
 				-printf "${HOME}/${_subdir}"'\\%P\n' | sort -g				\
