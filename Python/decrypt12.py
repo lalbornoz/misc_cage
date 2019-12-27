@@ -9,7 +9,7 @@ __license__      =    'GPLv3'
 __status__       =    'Production'
 __version__      =    '1.0'
 
-from Crypto.Cipher import AES
+from Cryptodome.Cipher import AES
 import os
 import sys
 import zlib
