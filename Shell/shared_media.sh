@@ -47,7 +47,7 @@ do_rsync() {
 			rc 0 rsync -aiPve ssh --delete --exclude=\*.m3u8				\
 				-n "${HOME}/${_subdir}" lucio@abbad_vpn00.:../lucio_shared;
 		else
-			rc "${_nflag}" rsync -aiPve ssh --delete --exclude=\*.m3u8			\
+			rc "${_nflag}" rsync -aiPve ssh --bwlimit=768K --delete --exclude=\*.m3u8	\
 				"${HOME}/${_subdir}" lucio@abbad_vpn00.:../lucio_shared;
 		fi;
 		IFS="	";

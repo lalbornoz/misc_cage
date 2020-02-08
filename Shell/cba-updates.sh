@@ -81,12 +81,13 @@ printf_rc() {
 	fi;
 };
 # }}}
+
 update_host() {
 	local _host="${1}" _lflag="${2}" _user="${3}" _log_data="" _log_fname="";
 
 	_log_fname="${0##*/}.${_host%%.}.log";
 	logf "%s:" "${_host}";
-	ssh -l"${_user}" -T "${_host}" "${REMOTE_SCRIPT}" 2>/dev/null |\
+	{ set +o errexit; ssh -l"${_user}" -T "${_host}" "${REMOTE_SCRIPT}" 2>/dev/null; echo "${?} rc"; } |\
 	while read -r _rc _type _msg; do
 	case "${_type}" in
 	autoremove)
@@ -97,6 +98,10 @@ update_host() {
 			printf_rc "${DEFAULT_COLOUR_DIST_UPGRADE}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
 	dpkg-new)
 			printf_rc "" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+	rc)
+			if [ "${_rc}" -ne 0 ]; then
+				printf " [${DEFAULT_COLOUR_FAILURE}mssh(1) exited w/ %s[0m" "${_rc}";
+			fi; ;;
 	rdepends)
 			printf_rc "${DEFAULT_COLOUR_RDEPENDS}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
 	services)
@@ -131,10 +136,10 @@ main() {
 	u)	_user="${OPTARG}"; ;;
 	*)	usage; exit 1; ;;
 	esac; done; shift $((${OPTIND}-1));
-	if [ -e "${HOME}/.cba-updates.hosts" ]; then
-		_hosts="$(cat "${HOME}/.cba-updates.hosts")";
-	else
+	if [ "${#}" -ge 1 ]; then
 		_hosts="${*}";
+	elif [ -e "${HOME}/.cba-updates.hosts" ]; then
+		_hosts="$(cat "${HOME}/.cba-updates.hosts")";
 	fi;
 	for _host in ${_hosts}; do
 		update_host "${_host}" "${_lflag}" "${_user}";
