@@ -9,7 +9,7 @@ New-PSDrive HKU Registry HKEY_USERS
 $AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
 $CygwinPath = "C:\tools\cygwin"
 $PackagesChocolatey = "7zip.install audacity audacity-lame birdtray bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install nvidia-display-driver mpc-hc mumble OpenOffice openvpn PDFCreator processhacker putty.install python3 rufus speedfan sysinternals thunderbird tor-browser vim vscode winfsp wireshark"
-$PackagesCygwin = "bc,bind-utils,cron,curl,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,msmtp,nc,openssh,openssl,patch,perl-URI,procps-ng,psmisc,python2,python3,rsync,socat,ssh-pageant,tmux,unzip,zsh,vim,wget,whois,zip"
+$PackagesCygwin = "bc,bind-utils,cron,curl,cygutils-extra,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,msmtp,nc,openssh,openssl,patch,perl-URI,procps-ng,psmisc,python2,python3,rsync,socat,ssh-pageant,tmux,unzip,zsh,vim,wget,whois,zip"
 $StepLimit = 14;
 $UserName = "lucio"
 $UserSID = (Get-WmiObject win32_useraccount | Where-Object -EQ -Property "name" -Value $UserName).SID
