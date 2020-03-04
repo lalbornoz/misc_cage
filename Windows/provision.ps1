@@ -169,6 +169,7 @@ progress "Install Chocolatey and Windows packages w/ Chocolatey" {
 # {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct {$PATH,%Path%} & hide Cygwin SSH user in UAC prompt
 progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct %Path% & hide Cygwin SSH user in UAC prompt" {
 	& "$CygwinPath\cygwinsetup" -nqWP $PackagesCygwin
+	& "$CygwinPath\bin\ln" '-fs' '/bin/putclip' '/bin/pbcopy'
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/^#\?\(Hostbased\|Password\|ChallengeResponse\|Kerberos\|GSSAPI\)Authentication\s\+\(yes\|no\)\s*$/\1Authentication no/' -e 's/^#\?PubkeyAuthentication\s\+\(yes\|no\)\s*$/PubkeyAuthentication yes/' /etc/defaults/etc/sshd_config
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's/posix=0/posix=1/' /etc/fstab
 	& "$CygwinPath\bin\sed" '-i.dist' -e 's,^\(\s*PATH="\)\(.\+\),\1/bin:\2,p' /etc/profile /etc/zprofile
