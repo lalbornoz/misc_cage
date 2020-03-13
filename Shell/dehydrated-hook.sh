@@ -58,15 +58,15 @@ deploy_cert() {
 		&&    [ -n "${KEY_DEST_FNAMES}" ]; do
 			CERT_DEST_DNAME="${CERT_DEST_DNAMES%% *}"; CERT_DEST_FNAME="${CERT_DEST_FNAMES%% *}";
 			DAEMON_NAME="${DAEMON_NAMES%% *}"; KEY_DEST_FNAME="${KEY_DEST_FNAMES%% *}";
-			scp "${CERT_FULL_FNAME}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${CERT_DEST_FNAME}";
-			scp "${KEYFILE}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${KEY_DEST_FNAME}";
+			scp -q "${CERT_FULL_FNAME}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${CERT_DEST_FNAME}";
+			scp -q "${KEYFILE}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${KEY_DEST_FNAME}";
 			ssh -l"${SSH_USER}" "${SSH_HNAME}" "
 				chmod 0640 \"${CERT_DEST_DNAME}/${CERT_DEST_FNAME}\" \"${CERT_DEST_DNAME}/${KEY_DEST_FNAME}\";
 				chown \"\$(stat -c \"%u:%g\" ${CERT_DEST_DNAME})\" \"${CERT_DEST_DNAME}/${CERT_DEST_FNAME}\" \"${CERT_DEST_DNAME}/${KEY_DEST_FNAME}\";
 				case \"${DAEMON_NAME}\" in
-				=\*)	pkill -HUP -f '${DAEMON_NAME#=}'; ;;
-				"")	;;
-				\*)	systemctl restart \"${DAEMON_NAME}\"; ;;
+				\"\")	;;
+				=*)	pkill -HUP -f \"${DAEMON_NAME#=}\"; ;;
+				*)	systemctl restart \"${DAEMON_NAME}\"; ;;
 				esac;";
 			if [ "${CERT_DEST_DNAMES#* *}" = "${CERT_DEST_DNAMES}" ]; then
 				break;
