@@ -1,4 +1,7 @@
 #!/bin/sh
+# Refer to <https://github.com/lalbornoz/misc_cage/tree/master/Shell/update-iptables.example>
+# concerning how to use this script.
+#
 
 # {{{ Globals
 RTL_LOG_LVL=0;
