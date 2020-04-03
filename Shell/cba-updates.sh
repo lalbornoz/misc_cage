@@ -83,42 +83,66 @@ printf_rc() {
 # }}}
 
 update_host() {
-	local _host="${1}" _lflag="${2}" _user="${3}" _log_data="" _log_fname="";
-
-	_log_fname="${0##*/}.${_host%%.}.log";
+	local	_host="${1}" _lflag="${2}" _user="${3}" _failfl=0 _log_data="" _log_fname=""\
+		_rc_fifo_fl=0 _rc_fifo_fname="cba-updates.${1%%.}.fifo" _rc_fifo_rc=0;
 	logf "%s:" "${_host}";
-	{ set +o errexit; ssh -l"${_user}" -T "${_host}" "${REMOTE_SCRIPT}" 2>/dev/null; echo "${?} rc"; } |\
-	while read -r _rc _type _msg; do
-	case "${_type}" in
-	autoremove)
-			printf_rc "" "${_rc}" " %s" "${_type}"; ;;
-	clean)
-			printf_rc "" "${_rc}" " %s" "${_type}"; ;;
-	dist-upgrade)
-			printf_rc "${DEFAULT_COLOUR_DIST_UPGRADE}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
-	dpkg-new)
-			printf_rc "" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
-	rc)
-			if [ "${_rc}" -ne 0 ]; then
-				printf " [${DEFAULT_COLOUR_FAILURE}mssh(1) exited w/ %s[0m" "${_rc}";
-			fi; ;;
-	rdepends)
-			printf_rc "${DEFAULT_COLOUR_RDEPENDS}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
-	services)
-			printf_rc "${DEFAULT_COLOUR_SERVICES}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
-	update)
-			printf_rc "" "${_rc}" " %s" "${_type}"; ;;
-	fini)		printf_rc "" "${_rc}" " %s" "[fetching log]";
-			if [ "${_lflag:-0}" -eq 0 ]; then
-				_log_fname="/dev/null";
-			else
-				touch "${_log_fname}";
+	if ! _log_fname="cba-updates.${_host%%.}_$(date +%Y%m%d).log"; then
+		printf_rc "" 1 " [date(1) exited w/ non-zero status.]\n";
+	elif ! rm -f "${_rc_fifo_fname}"\
+	||   ! mkfifo "${_rc_fifo_fname}"; then
+		printf_rc "" 1 " [failed to (re)create FIFO \`%s'.]\n" "${_rc_fifo_fname}";
+	else	trap "rm -f \"${_rc_fifo_fname}\" >/dev/null 2>&1" EXIT HUP INT TERM USR1 USR2;
+		{ set +o errexit; exec 3>"${_rc_fifo_fname}"; ssh -l"${_user}" -T "${_host}" "${REMOTE_SCRIPT}" 2>/dev/null; echo "${?}" >&3; } | {
+		exec 3<>"${_rc_fifo_fname}";
+		while true; do
+			if [ "${_rc_fifo_fl:-0}" -eq 0 ]; then
+				_msg=""; read -r _msg <&3;
+				if [ -n "${_msg}" ]; then
+					_rc_fifo_fl=1; _rc_fifo_rc="${_msg}";
+				fi;
 			fi;
-			while IFS= read -r _log_data; do
-				printf "%s\n" "${_log_data}" >>"${_log_fname}";
-			done; break; ;;
-	*)		printf " [${DEFAULT_COLOUR_FAILURE}m?(rc=%s,type=%s,msg=%s)[0m" "${_rc}" "${_type}" "${_msg}"; break; ;;
-	esac; done; printf ".\n";
+			if ! read -r _rc _type _msg; then
+				break;
+			else
+				if [ "${_rc:-0}" -ne 0 ]; then
+					_failfl=1;
+				fi;
+				case "${_type}" in
+				autoremove)
+						printf_rc "" "${_rc}" " %s" "${_type}"; ;;
+				clean)
+						printf_rc "" "${_rc}" " %s" "${_type}"; ;;
+				dist-upgrade)
+						printf_rc "${DEFAULT_COLOUR_DIST_UPGRADE}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+				dpkg-new)
+						printf_rc "" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+				rdepends)
+						printf_rc "${DEFAULT_COLOUR_RDEPENDS}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+				services)
+						printf_rc "${DEFAULT_COLOUR_SERVICES}" "${_rc}" " %s(%s)" "${_type}" "${_msg}"; ;;
+				update)
+						printf_rc "" "${_rc}" " %s" "${_type}"; ;;
+				fini)		printf_rc "" "${_rc}" " %s" "[fetching log]";
+						if [ "${_failfl:-0}" -eq 0 ]\
+						&& [ "${_lflag:-0}" -eq 0 ]; then
+							_log_fname="/dev/null";
+						else
+							touch "${_log_fname}";
+						fi;
+						while IFS= read -r _log_data; do
+							printf "%s\n" "${_log_data}" >>"${_log_fname}";
+						done; break; ;;
+				*)		printf " [${DEFAULT_COLOUR_FAILURE}m?(rc=%s,type=%s,msg=%s)[0m" "${_rc}" "${_type}" "${_msg}"; break; ;;
+				esac;
+			fi;
+		done;
+		if [ "${_rc_fifo_rc}" -ne 0 ]; then
+			printf " [${DEFAULT_COLOUR_FAILURE}m[ssh(1) exited w/ exit status %s.][0m\n" "${_rc_fifo_rc}";
+		else
+			printf ".\n";
+		fi;};
+		rm -f "${_rc_fifo_fname}"; trap - EXIT HUP INT TERM USR1 USR2;
+	fi;
 };
 
 usage() {
