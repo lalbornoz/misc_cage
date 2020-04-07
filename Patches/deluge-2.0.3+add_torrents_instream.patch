@@ -1,7 +1,5 @@
-https://dev.deluge-torrent.org/ticket/2320
-
---- /usr/lib/python3/dist-packages/deluge/ui/web/json_api.py.dist	2019-06-12 23:17:45.000000000 +0200
-+++ /usr/lib/python3/dist-packages/deluge/ui/web/json_api.py	2020-03-21 19:05:25.391934691 +0100
+--- deluge/ui/web/json_api.py.dist	2019-06-12 23:17:45.000000000 +0200
++++ deluge/ui/web/json_api.py	2020-03-23 16:42:28.905353584 +0100
 @@ -724,7 +724,8 @@
          Add torrents by file
  
