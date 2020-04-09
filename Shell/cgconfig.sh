@@ -21,7 +21,7 @@
 #
 # The weight in the range [1, 10000].
 #
-: ${CGROUP_DEFAULT_CPU_WEIGHT:="100"};
+: ${CGROUP_DEFAULT_CPU_WEIGHT:="10000"};
 
 #
 # A read-write single value file which exists on non-root
@@ -37,7 +37,7 @@
 # high limit is used and monitored properly, this limit's
 # utility is limited to providing the final safety net.
 #
-: ${CGROUP_DEFAULT_MEMORY_MAX:="max"};
+: ${CGROUP_DEFAULT_MEMORY_MAX:="$((512 * 1024 * 1024))"};
 
 #
 # A read-write single value file which exists on non-root
@@ -45,7 +45,7 @@
 #
 # Hard limit of number of processes.
 #
-: ${CGROUP_DEFAULT_PIDS_MAX:="max"};
+: ${CGROUP_DEFAULT_PIDS_MAX:="64"};
 # }}}
 # {{{ RTL functions
 rtl_cgroup_create_subdir() {
@@ -196,17 +196,19 @@ cgconfig() {
 	done; shift $((${OPTIND}-1));
 	if [ -e "/etc/default/cgconfig" ]; then
 		if ! . "/etc/default/cgconfig"; then
-			rtl_log_error "failed to source \`/etc/default/cgconfig'."; exit 1;
+			rtl_log_error "failed to source \`/etc/default/cgconfig'."; exit 2;
 		fi;
 	fi;
 	if ! rtl_cgroup_create_subdir "${_vflag}" "users"; then
-		exit 2;
-	elif ! rtl_cgroup_write_file "${_vflag:-0}" "" "cgroup.subtree_control" "+cpu +memory +pids"; then
 		exit 3;
-	elif ! rtl_cgroup_write_file "${_vflag:-0}" "users" "cgroup.subtree_control" "+cpu +memory +pids"; then
+	elif ! rtl_cgroup_write_file "${_vflag:-0}" "" "cgroup.subtree_control" "+cpu +memory +pids"; then
 		exit 4;
-	elif ! _unames="$(rtl_get_users "${CGROUP_USERS_GROUP}")"; then
+	elif ! rtl_cgroup_write_file "${_vflag:-0}" "users" "cgroup.subtree_control" "+cpu +memory +pids"; then
 		exit 5;
+	elif ! rtl_cgroup_write_file "${_vflag:-0}" "users" "cpu.weight" "10000"; then
+		exit 6;
+	elif ! _unames="$(rtl_get_users "${CGROUP_USERS_GROUP}")"; then
+		exit 7;
 	else	for _uname in ${_unames}; do
 			if rtl_cgroup_create_subdir "${_vflag}" "users/${_uname}"; then
 				if _vval="$(cgconfigp_get_var "${_uname}" "CPU_MAX")"; then
