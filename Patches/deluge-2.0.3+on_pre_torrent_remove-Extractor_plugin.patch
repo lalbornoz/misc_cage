@@ -1,0 +1,119 @@
+--- plugins/Extractor-0.7.egg/deluge_extractor/core.py.dist	2019-06-12 23:17:44.000000000 +0200
++++ plugins/Extractor-0.7.egg/deluge_extractor/core.py	2020-04-10 15:16:52.124139082 +0200
+@@ -16,6 +16,8 @@
+ import errno
+ import logging
+ import os
++import shutil
++import traceback
+ 
+ from twisted.internet.utils import getProcessOutputAndValue
+ from twisted.python.procutils import which
+@@ -110,37 +112,62 @@
+         component.get('EventManager').register_event_handler(
+             'TorrentFinishedEvent', self._on_torrent_finished
+         )
++        if self.config['use_name_folder']:
++            component.get('EventManager').register_event_handler(
++                'PreTorrentRemovedEvent', self._on_pre_torrent_removed
++            )
+ 
+     def disable(self):
+         component.get('EventManager').deregister_event_handler(
+             'TorrentFinishedEvent', self._on_torrent_finished
+         )
++        if self.config['use_name_folder']:
++            component.get('EventManager').deregister_event_handler(
++                'PreTorrentRemovedEvent', self._on_pre_torrent_removed
++            )
+ 
+     def update(self):
+         pass
+ 
++    def _check_torrent_file(self, f):
++        checkfl, file_ext = False, None
++        file_root, file_ext = os.path.splitext(f['path'])
++        file_ext_sec = os.path.splitext(file_root)[1]
++        if file_ext_sec and file_ext_sec + file_ext in EXTRACT_COMMANDS:
++            checkfl, file_ext = True, file_ext_sec + file_ext
++        elif file_ext not in EXTRACT_COMMANDS or file_ext_sec == '.tar':
++            log.debug('Cannot extract file with unknown file type: %s', f['path'])
++        elif file_ext == '.rar' and 'part' in file_ext_sec:
++            part_num = file_ext_sec.split('part')[1]
++            if part_num.isdigit() and int(part_num) != 1:
++                log.debug('Skipping remaining multi-part rar files: %s', f['path'])
++            else:
++                checkfl = True
++        else:
++            checkfl = True
++        return checkfl, file_ext
++
++    def _check_torrent_files(self, tid):
++        files = tid.get_files()
++        for f in files:
++            checkfl, file_ext = self._check_torrent_file(f)
++            if not checkfl:
++                continue
++            else:
++                return True
++        return False
++
+     def _on_torrent_finished(self, torrent_id):
+         """
+         This is called when a torrent finishes and checks if any files to extract.
+         """
+         tid = component.get('TorrentManager').torrents[torrent_id]
+         tid_status = tid.get_status(['download_location', 'name'])
+-
+         files = tid.get_files()
+         for f in files:
+-            file_root, file_ext = os.path.splitext(f['path'])
+-            file_ext_sec = os.path.splitext(file_root)[1]
+-            if file_ext_sec and file_ext_sec + file_ext in EXTRACT_COMMANDS:
+-                file_ext = file_ext_sec + file_ext
+-            elif file_ext not in EXTRACT_COMMANDS or file_ext_sec == '.tar':
+-                log.debug('Cannot extract file with unknown file type: %s', f['path'])
++            checkfl, file_ext = self._check_torrent_file(f)
++            if not checkfl:
+                 continue
+-            elif file_ext == '.rar' and 'part' in file_ext_sec:
+-                part_num = file_ext_sec.split('part')[1]
+-                if part_num.isdigit() and int(part_num) != 1:
+-                    log.debug('Skipping remaining multi-part rar files: %s', f['path'])
+-                    continue
+-
+             cmd = EXTRACT_COMMANDS[file_ext]
+             fpath = os.path.join(
+                 tid_status['download_location'], os.path.normpath(f['path'])
+@@ -179,6 +206,31 @@
+             )
+             d.addCallback(on_extract, torrent_id, fpath)
+ 
++    def _on_pre_torrent_removed(self, torrent_id):
++        """
++        This is called when a torrent is removed.
++        """
++        tid = component.get('TorrentManager').torrents[torrent_id]
++        tid_status = tid.get_status(['download_location', 'name'])
++        if self._check_torrent_files(tid):
++            dest = os.path.normpath(self.config['extract_path'])
++            dest = os.path.join(dest, tid_status['name'])
++            if os.path.isdir(dest):
++                def on_rmtree_error(function, path, excinfo):
++                    log.error(
++                        'Removing previously extracted files for torrent %s in %s failed: %s',
++                        torrent_id,
++                        dest,
++                        traceback.format_exception(*excinfo),
++                    )
++
++                log.debug(
++                    'Removing previously extracted files for torrent %s in %s',
++                    torrent_id,
++                    dest,
++                )
++                shutil.rmtree(dest, onerror=on_rmtree_error)
++
+     @export
+     def set_config(self, config):
+         """Sets the config dictionary."""
