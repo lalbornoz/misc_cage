@@ -1,6 +1,37 @@
 #!/bin/sh
 
-# {{{ clean_challenge()
+TOKEN_DNAME_PREFIX="/var/www";
+TOKEN_GROUP="www-data";
+TOKEN_MODE_DIRECTORY="0750";
+TOKEN_MODE_FILE="0640";
+TOKEN_USER="www-data";
+
+# {{{ dhp_mkdir()
+dhp_mkdir() {
+	local _dname="${1}" _group="${2}" _mode="${3}" _user="${4}" _dname_cur="" IFS="/";
+	set -- ${_dname};
+	if [ "${_dname#/}" != "${_dname}" ]; then
+		_dname_cur="/";
+	fi;
+	while [ "${#}" -gt 0 ]; do
+		if [ -n "${1}" ]; then
+			_dname_full="${_dname_cur:+${_dname_cur}/}${1}";
+			if ! [ -e "${_dname_full}" ]; then
+				if ! mkdir "${_dname_full}"\
+				|| ! chmod "${_mode}" "${_dname_full}"\
+				|| ! chown "${_user}:${_group}" "${_dname_full}"; then
+					return 1;
+				fi;
+			elif ! [ -d "${_dname_full}" ]; then
+				return 1;
+			fi;
+			_dname_cur="${_dname_full}";
+		fi; shift;
+	done; return 0;
+};
+# }}}
+
+# {{{ dh_clean_challenge()
 #
 # This hook is called after attempting to validate each domain,
 # whether or not validation was successful. Here you can delete
@@ -8,19 +39,15 @@
 #
 # The parameters are the same as for deploy_challenge.
 #
-clean_challenge() {
-	local DOMAIN="${1}" TOKEN_FNAME="${2}" TOKEN_VALUE="${3}" SSH_HNAME="" SSH_USER="root";
-	if SSH_HNAME="$(get_ssh_hname "${DOMAIN}")"; then
-		ssh -l"${SSH_USER}" "${SSH_HNAME}" "
-			TOKEN_DNAME=\"/var/www/${DOMAIN}/.well-known\";
-			rm -f \"\${TOKEN_DNAME}/${TOKEN_FNAME}\";
-			if [ \"\$(find \"\${TOKEN_DNAME}\" -maxdepth 1 -mindepth 1 | wc -l)\" -eq 0 ]; then
-				rm -fr \"\${TOKEN_DNAME}\";
-			fi";
+dh_clean_challenge() {
+	local DOMAIN="${1}" TOKEN_FNAME="${2}" TOKEN_VALUE="${3}" TOKEN_DNAME="${TOKEN_DNAME_PREFIX}/${1}";
+	rm -f "${TOKEN_DNAME}/.well-known/acme-challenge/${TOKEN_FNAME}";
+	if [ "$(find "${TOKEN_DNAME}/.well-known/acme-challenge" -maxdepth 1 -mindepth 1 2>/dev/null | wc -l)" -eq 0 ]; then
+		rm -fr "${TOKEN_DNAME}/.well-known/acme-challenge" "${TOKEN_DNAME}/.well-known";
 	fi;
 };
 # }}}
-# {{{ deploy_cert
+# {{{ dh_deploy_cert
 #
 # This hook is called once for each certificate that has been
 # produced. Here you might, for instance, copy your new certificates
@@ -42,11 +69,10 @@ clean_challenge() {
 #   Timestamp when the specified certificate was created.
 # }}}
 #
-deploy_cert() {
+dh_deploy_cert() {
 	local DOMAIN="${1}" KEYFILE="${2}" CERTFILE="${3}" FULLCHAINFILE="${4}" CHAINFILE="${5}" TIMESTAMP="${6}"	\
 		CERT_DEST_DNAME="" CERT_DEST_FNAME="" DAEMON_NAME="" KEY_DEST_FNAME=""					\
-		CERT_FULL_FNAME="$(mktemp)" SSH_HNAME="$(get_ssh_hname "${1}")" SSH_USER="toor"				\
-		CERT_DEST_DNAMES="" CERT_DEST_FNAMES="" DAEMON_NAMES="" KEY_DEST_FNAMES="";
+		CERT_FULL_FNAME="$(mktemp)" CERT_DEST_DNAMES="" CERT_DEST_FNAMES="" DAEMON_NAMES="" KEY_DEST_FNAMES="";
 	if ! get_domain_env "${DOMAIN}"; then
 		echo "error: failed to obtain environment for \`${DOMAIN}'." >&2; return 1;
 	elif ! cat "${CERTFILE}" "${FULLCHAINFILE}" > "${CERT_FULL_FNAME}"; then
@@ -58,16 +84,16 @@ deploy_cert() {
 		&&    [ -n "${KEY_DEST_FNAMES}" ]; do
 			CERT_DEST_DNAME="${CERT_DEST_DNAMES%% *}"; CERT_DEST_FNAME="${CERT_DEST_FNAMES%% *}";
 			DAEMON_NAME="${DAEMON_NAMES%% *}"; KEY_DEST_FNAME="${KEY_DEST_FNAMES%% *}";
-			scp -q "${CERT_FULL_FNAME}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${CERT_DEST_FNAME}";
-			scp -q "${KEYFILE}" "${SSH_USER}@${SSH_HNAME}:${CERT_DEST_DNAME}/${KEY_DEST_FNAME}";
-			ssh -l"${SSH_USER}" "${SSH_HNAME}" "
-				chmod 0640 \"${CERT_DEST_DNAME}/${CERT_DEST_FNAME}\" \"${CERT_DEST_DNAME}/${KEY_DEST_FNAME}\";
-				chown \"\$(stat -c \"%u:%g\" ${CERT_DEST_DNAME})\" \"${CERT_DEST_DNAME}/${CERT_DEST_FNAME}\" \"${CERT_DEST_DNAME}/${KEY_DEST_FNAME}\";
-				case \"${DAEMON_NAME}\" in
-				\"\")	;;
-				=*)	pkill -HUP -f \"${DAEMON_NAME#=}\"; ;;
-				*)	systemctl restart \"${DAEMON_NAME}\"; ;;
-				esac;";
+			if cp -aL "${CERT_FULL_FNAME}" "${CERT_DEST_DNAME}/${CERT_DEST_FNAME}"\
+			&& cp -aL "${KEYFILE}" "${CERT_DEST_DNAME}/${KEY_DEST_FNAME}"\
+			&& chmod 0640 "${CERT_DEST_DNAME}/${CERT_DEST_FNAME}" "${CERT_DEST_DNAME}/${KEY_DEST_FNAME}"\
+			&& chown "$(stat -c "%u:%g" ${CERT_DEST_DNAME})" "${CERT_DEST_DNAME}/${CERT_DEST_FNAME}" "${CERT_DEST_DNAME}/${KEY_DEST_FNAME}"; then
+				case "${DAEMON_NAME}" in
+				"")	;;
+				=*)	pkill -HUP -f "${DAEMON_NAME#=}"; ;;
+				*)	systemctl restart "${DAEMON_NAME}"; ;;
+				esac;
+			fi;
 			if [ "${CERT_DEST_DNAMES#* *}" = "${CERT_DEST_DNAMES}" ]; then
 				break;
 			else
@@ -78,7 +104,7 @@ deploy_cert() {
 	fi;
 };
 # }}}
-# {{{ deploy_challenge()
+# {{{ dh_deploy_challenge()
 #
 # This hook is called once for every domain that needs to be
 # validated, including any alternative names you may have listed.
@@ -98,29 +124,29 @@ deploy_cert() {
 #   be found in the $TOKEN_FILENAME file.
 # }}}
 #
-deploy_challenge() {
-	local DOMAIN="${1}" TOKEN_FILENAME="${2}" TOKEN_VALUE="${3}" SSH_HNAME="" SSH_USER="root";
-	if SSH_HNAME="$(get_ssh_hname "${1}")"; then
-		ssh -l"${SSH_USER}" "${SSH_HNAME}" "set -o errexit;
-			TOKEN_DNAME=\"/var/www/${DOMAIN}/.well-known/acme-challenge\";
-			mkdir -p \"\${TOKEN_DNAME}\";
-			install -g www-data -m 0640 -o www-data /dev/null \"\${TOKEN_DNAME}/${TOKEN_FILENAME}\";
-			printf \"%s\n\" \"${TOKEN_VALUE}\" > \"\${TOKEN_DNAME}/${TOKEN_FILENAME}\"";
+dh_deploy_challenge() {
+	local DOMAIN="${1}" TOKEN_FILENAME="${2}" TOKEN_VALUE="${3}" TOKEN_DNAME="${TOKEN_DNAME_PREFIX}/${1}/.well-known/acme-challenge";
+	if ! dhp_mkdir "${TOKEN_DNAME}" "${TOKEN_GROUP}" "${TOKEN_MODE_DIRECTORY}" "${TOKEN_USER}"\
+	|| ! install -g "${TOKEN_GROUP}" -m "${TOKEN_MODE_FILE}" -o "${TOKEN_USER}" /dev/null "${TOKEN_DNAME}/${TOKEN_FILENAME}"\
+	|| ! printf "%s\n" "${TOKEN_VALUE}" > "${TOKEN_DNAME}/${TOKEN_FILENAME}"; then
+		return 1;
+	else
+		return 0;
 	fi;
 };
 # }}}
 
 dehydrated_hook() {
-	local _handler="${1}" _rc=0; shift;
-	if ! source "${HOME}/.dehydrated.rc"; then
-		_rc=1; echo "error: failed to source \`${HOME}/.dehydrated.rc'." >&2;
-	elif ! type get_ssh_hname >/dev/null 2>&1\
-	||   ! type get_domain_env >/dev/null 2>&1; then
-		_rc=1; echo "error: missing get_ssh_hname() and/or get_domain_env() functions." >&2;
+	local _handler="${1}" _rc=0; shift; umask 022;
+	if ! . "/etc/dehydrated/hook.config"\
+	&& ! . "${HOME}/.dehydrated.rc"; then
+		_rc=1; echo "error: failed to source /etc/dehydrated/hook.config or \`${HOME}/.dehydrated.rc'." >&2;
+	elif ! type get_domain_env >/dev/null 2>&1; then
+		_rc=1; echo "error: missing get_domain_env() function." >&2;
 	else	case "${_handler}" in
 		clean_challenge|exit_hook|generate_csr|deploy_cert|deploy_challenge|deploy_ocsp|invalid_challenge|request_failure|startup_hook|sync_cert|unchanged_cert)
-			if type "${_handler}" >/dev/null 2>&1; then
-				"${_handler}" "${@}"; _rc="${?}";
+			if type "dh_${_handler}" >/dev/null 2>&1; then
+				"dh_${_handler}" "${@}"; _rc="${?}";
 			fi; ;;
 		esac;
 	fi; return "${_rc}";
