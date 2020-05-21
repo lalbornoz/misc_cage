@@ -1,119 +1,207 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+#
 # References:
-# Sat, 28 May 2016 12:27:48 +0200 [1] Overview — python-apt 1.1.0~beta2 documentation <https://apt.alioth.debian.org/python-apt-doc/>
+# Wed, 20 May 2020 15:42:45 +0200 [1] Python APT Library — python-apt 2.1.3 documentation <https://apt-team.pages.debian.net/python-apt/library/index.html>
 #
 
-from __future__ import print_function
-import apt
-import apt.debfile
-import apt_pkg
-import argparse
-import logging
-import os.path
-import sys
-import time
+import apt, apt_pkg
+import argparse, itertools, logging, os, sys, time
 
-def pkg_filter_installed(pkg_cache, pkg):
-    return pkg_cache[pkg.name].selected_state == apt_pkg.SELSTATE_INSTALL
-def pkg_filter_upgradable(cache, pkg):
-    return cache[pkg.name].is_upgradable
-def pkg_has_service_unit_file(cache, pkg):
-    for _pname in cache[pkg.name].installed_files:
-        if(_pname.startswith("/lib/systemd/system/")
-                and _pname.endswith(".service")):
+# {{{ class AptUpgradesLogger(object)
+class AptUpgradesLogger(object):
+    # {{{ class Formatter(logging.Formatter)
+    class Formatter(logging.Formatter):
+        ansiColours = {"CRITICAL":91, "ERROR":91, "WARNING":31, "INFO":93, "VERBOSE":96, "DEBUG":35}
+
+        def format(self, record):
+            message = super().format(record)
+            if self.ansiEnabled:
+                return "\x1b[{}m{}\x1b[0m".format(self.ansiColours[record.levelname], message)
+            else:
+                return message
+        def formatTime(self, record, datefmt="%Y-%b-%d %H:%M:%S"):
+            return time.strftime(datefmt).upper()
+        def __init__(self, fmt="%(asctime)-20s %(message)s", datefmt="%Y-%b-%d %H:%M:%S", style="%"):
+            super().__init__(fmt, datefmt, style); self.ansiEnabled = sys.stdout.isatty();
+    # }}}
+    VERBOSE = 15
+
+    def verbose(self, message, *args, **kwargs):
+        if self.logger.isEnabledFor(self.VERBOSE):
+            self.logger._log(self.VERBOSE, message, args, **kwargs)
+
+    def __init__(self, initialLevel=logging.INFO, name="apt-python"):
+        consoleHandler = logging.StreamHandler(sys.stdout)
+        consoleHandler.setFormatter(self.Formatter())
+        logging.addLevelName(self.VERBOSE, "VERBOSE")
+        logging.basicConfig(handlers=(consoleHandler,))
+        self.logger = logging.getLogger(name); self.logger.verbose = self.verbose;
+        self.logger.setLevel(initialLevel)
+# }}}
+
+class AptUpgrades(object):
+    """APT package upgrades check class"""
+
+    # {{{ def _aptLock(self)
+    def _aptLock(self):
+        self.cache, self.depCache, self.pkgCache, self.pkgManager = None, None, None, None
+        try:
+            self.logger.logger.verbose("Locking the global pkgsystem."); apt_pkg.pkgsystem_lock(); cache = apt.Cache();
+            self.logger.logger.verbose("Locking the global pkgsystem."); apt_pkg.pkgsystem_lock();
+            self.logger.logger.verbose("Updating cache..."); cache.update(); self.logger.logger.verbose("Opening cache..."); cache.open(None);
+            pkgCache = apt_pkg.Cache(progress=None); depCache = apt_pkg.DepCache(pkgCache); pkgManager = apt_pkg.PackageManager(depCache);
+            self.cache, self.depCache, self.pkgCache, self.pkgManager = cache, depCache, pkgCache, pkgManager
             return True
-    return False
-def plural_suffix_noun(n):
-    return ("" if n == 1 else "s")
-def plural_suffix_verb(n):
-    return ("s" if n == 1 else "")
+        except Exception as e:
+            self.logger.logger.error(e)
+            return False
+    # }}}
+    # {{{ def _aptUnlock(self)
+    def _aptUnlock(self):
+        try:
+            self.logger.logger.verbose("Unlocking the global pkgsystem."); apt_pkg.pkgsystem_unlock()
+            self.cache, self.pkgCache = None, None
+            return True
+        except Exception as e:
+            self.logger.logger.error(e)
+            return False
+    # }}}
+    # {{{ def _printReport(self, downloaded, names, reverseDepends, serviceUnits, serviceUnitsReverse, file=sys.stdout)
+    def _printReport(self, downloaded, names, reverseDepends, serviceUnits, serviceUnitsReverse, file=sys.stdout):
+        report = '''\
+APT package upgrade report
+==========================
 
-def main():
-    logging.basicConfig(format="%(asctime)-15s %(message)s")
-    _logger = logging.getLogger("apt-python")
-    _parser = argparse.ArgumentParser(description="")
-    _parser.add_argument("-n", "--dry-run", action="store_true",
-        default=False, dest="dry_run")
-    _parser.add_argument("-d", "--debug", action="store_true",
-        default=False, dest="debug")
-    _parser.add_argument("-t", "--test", action="store",
-        default=False, dest="test")
-    _parser.add_argument("-v", "--verbose", action="store_true",
-        default=False, dest="verbose")
-    _args = _parser.parse_args()
-    if _args.debug:
-        _logger.setLevel(logging.DEBUG)
-    else:
-        _logger.setLevel(logging.INFO)
-    _logger.debug("Locking the global pkgsystem.")
+'''
+        names_, reverseDepends_ = ", ".join(sorted(tuple(set(names)))), ", ".join(sorted(tuple(set(reverseDepends))))
+        report += '''The following packages can be upgraded{}:
+{}'''.format("" if not downloaded else " and have been downloaded", ", ".join(sorted(tuple(set(names)))))
+        if names_ != reverseDepends_:
+            report += '''
 
-    apt_pkg.pkgsystem_lock()
-    _cache = apt.Cache()
-    _logger.debug("Locking the global pkgsystem.")
-    apt_pkg.pkgsystem_lock()    # XXX locking twice is necessary as python-apt is fucking broken garbage software
-    _logger.info("Updating cache.")
-    _cache.update()
-    _logger.info("Opening cache.")
-    _cache.open(None)
-    _pkg_cache = apt_pkg.Cache(progress=None)
-    _pkg_dep_cache = apt_pkg.DepCache(_pkg_cache)
-    _pkg_pkg_mgr = apt_pkg.PackageManager(_pkg_dep_cache)
-    if _args.debug:
-        _pkg_acquire = apt_pkg.Acquire(apt.progress.text.AcquireProgress())
-    else:
-        _pkg_acquire = apt_pkg.Acquire()
-    _pkg_source_list = apt_pkg.SourceList()
-    _logger.info("Reading main source lists.")
-    _pkg_source_list.read_main_list()
+The following reverse dependencies, sans library packages, may be affected:
+{}'''.format(", ".join(sorted(tuple(set(reverseDepends)))))
+        serviceUnits_ = "\n".join(sorted(["{0:48s}[owned by {1}]".format(*u) for u in tuple(set(serviceUnitsReverse))]))
+        serviceUnitsReverse_ = "\n".join(sorted(["{0:48s}[owned by {1}]".format(*u) for u in tuple(set(serviceUnitsReverse))]))
+        if len(serviceUnits_) and len(serviceUnitsReverse_) and (serviceUnits_ == serviceUnitsReverse_):
+            report += '''
 
-    _npkg_upgrade = 0
-    if _args.test:
-        _pkg_list = [_cache[_args.test]]
-    else:
-        _pkg_list = filter(lambda p: pkg_filter_installed(_pkg_cache, p)
-                and pkg_filter_upgradable(_cache, p), _cache)
-    for pkg in _pkg_list:
-        _logger.info(pkg.name + " has an upgrade available.")
+This upgrade and its reverse dependencies, sans library packages, encompass the following systemd service units:
+{}'''.format(serviceUnits_)
+        else:
+            if len(serviceUnits_):
+                report += '''
 
-        _pkg_rdep_names = []
-        for _pkg_rdep in filter(lambda p: pkg_filter_installed(_pkg_cache, p.parent_pkg),
-                _pkg_cache[pkg.name].rev_depends_list):
-            if _pkg_rdep.parent_pkg.name in _pkg_rdep_names:
+This upgrade encompasses the following systemd service units:
+{}'''.format(serviceUnits_)
+            if len(serviceUnitsReverse):
+                report += '''
+
+The reverse dependencies, sans library packages, listed above encompass the following systemd service units:
+{}'''.format(serviceUnitsReverse_)
+        print(report, file=file)
+    # }}}}
+
+    # {{{ def filterInstalled(self, pkg)
+    def filterInstalled(self, pkg):
+        return self.pkgCache[pkg.name].selected_state == apt_pkg.SELSTATE_INSTALL
+    # }}}
+    # {{{ def filterUpgradable(self, pkg)
+    def filterUpgradable(self, pkg):
+        return self.cache[pkg.name].is_upgradable
+    # }}}
+    # {{{ def getDepends(self, pkg, depends=(), dependsCache=(), predicate=None)
+    def getDepends(self, pkg, depends=(), dependsCache=(()), predicate=None):
+        depends, pkgCurrentVer = (), self.pkgCache[pkg.name].current_ver
+        if pkgCurrentVer is not None:
+            for pkgDependType in pkgCurrentVer.depends_list.keys():
+                for pkgDepend in pkgCurrentVer.depends_list[pkgDependType]:
+                    for pkgDependOr in (p.target_pkg for p in pkgDepend if not p.target_pkg.name in dependsCache):
+                        dependsCache += (pkgDependOr.name,)
+                        if predicate is not None and not predicate(pkgDependOr):
+                            continue
+                        else:
+                            depends += (pkgDependOr, *self.getDepends(pkgDependOr, depends, dependsCache, predicate),)
+        return tuple(set([p for p in depends]))
+    # }}}
+    # {{{ def getReverseDepends(self, pkg, predicate=None)
+    def getReverseDepends(self, pkg, predicate=None):
+        rdepends, rdepends_ = filter(lambda p: self.filterInstalled(p.parent_pkg), self.pkgCache[pkg.name].rev_depends_list), ()
+        for rdepend in [p.parent_pkg for p in rdepends if not p.parent_pkg.name in rdepends_]:
+            if predicate is not None and not predicate(rdepend):
                 continue
             else:
-                _pkg_rdep_names.append(_pkg_rdep.parent_pkg.name)
-        if len(_pkg_rdep_names):
-            _logger.info("The following package" + plural_suffix_noun(_pkg_rdep_names)
-                + " depend" + plural_suffix_verb(_pkg_rdep_names) + " on this package:")
-            for _pkg_rdep_name in _pkg_rdep_names:
-                if(pkg_has_service_unit_file(_cache, _pkg_cache[_pkg_rdep_name])):
-                    _logger.info("  " + _pkg_rdep_name + " [SERVICE]");
-                else:
-                    _logger.info("  " + _pkg_rdep_name);
+                rdepends_ += (rdepend,)
+        return tuple(set(rdepends_))
+    # }}}
+    # {{{ def getServices(self, pkgList)
+    def getServices(self, pkgList):
+        services = ()
+        for pkg in pkgList:
+            pkgNameList = pkg.name.split("-")
+            def getServicesPredicate(pkg_):
+                return len(os.path.commonprefix((pkgNameList, pkg_.name.split("-"),))) and self.filterInstalled(pkg_)
+            for pkg_ in (*self.getDepends(pkg, predicate=getServicesPredicate), pkg,):
+                services_ = self.getServiceUnitFiles(pkg_)
+                if len(services_):
+                    services += (services_,)
+        return services
+    # }}}
+    # {{{ def getServiceUnitFiles(self, pkg)
+    def getServiceUnitFiles(self, pkg):
+        serviceUnitFiles = ()
+        for installedFile in self.cache[pkg.name].installed_files:
+            if installedFile.startswith("/lib/systemd/system/") and installedFile.endswith(".service"):
+                serviceUnitFiles += (installedFile, pkg.name,)
+        return serviceUnitFiles
+    # }}}
 
-        _logger.debug("Marking " + pkg.name + " for installation.")
-        _pkg_dep_cache.mark_install(_pkg_cache[pkg.name])
-        _npkg_upgrade += 1
-
-    if ((_npkg_upgrade == 0) and (_args.debug or _args.verbose)
-    or  (_npkg_upgrade > 0)):
-        if _args.debug:
-            _logger.info(str(_npkg_upgrade) + " package" + plural_suffix_noun(_npkg_upgrade)
-                + " to upgrade.")
+    # {{{ def main(self)
+    def main(self):
+        return 0 if self.synchronise() else 1
+    # }}}
+    # {{{ def synchronise(self)
+    def synchronise(self):
+        if self._aptLock():
+            if self.args.test:
+                try:
+                    pkgList = [self.cache[name] for name in self.args.test.split(",")]
+                except KeyError as e:
+                    self.logger.logger.error(e); return False;
+            else:
+                pkgList = list(filter(lambda p: self.filterInstalled(p) and self.filterUpgradable(p), self.cache))
+            if len(pkgList):
+                pkgDownloaded, pkgListNames, pkgListReverseDepends, pkgListServiceUnits, pkgListServiceUnitsReverse = False, [], [], [], []
+                for pkg in pkgList:
+                    pkgListNames += [pkg.name]
+                    pkgReverseDepends = self.getReverseDepends(pkg, lambda p: not p.name.startswith("lib"))
+                    pkgListServiceUnits += self.getServices([pkg])
+                    pkgListServiceUnitsReverse += self.getServices(pkgReverseDepends)
+                    pkgListReverseDepends += [p.name for p in pkgReverseDepends]
+                if self.args.download:
+                    pkgAcquire, pkgSourceList = apt_pkg.Acquire(), apt_pkg.SourceList()
+                    self.logger.logger.verbose("Reading main source lists...")
+                    pkgSourceList.read_main_list()
+                    self.depCache.upgrade()
+                    self.logger.logger.verbose("Downloading archives...")
+                    pkgDownloaded = self.pkgManager.get_archives(pkgAcquire, pkgSourceList, apt_pkg.PackageRecords(self.pkgCache))
+                    pkgAcquire.run()
+                self._printReport(pkgDownloaded, pkgListNames, pkgListReverseDepends, pkgListServiceUnits, pkgListServiceUnitsReverse)
+            self._aptUnlock()
+            return True
         else:
-            _logger.info(str(_npkg_upgrade) + " package" + plural_suffix_noun(_npkg_upgrade)
-                + " to upgrade.")
-    if (not _args.dry_run) and (_npkg_upgrade > 0):
-        _logger.debug("Invoking _pkg_dep_cache.upgrade().")
-        _pkg_dep_cache.upgrade()
-        _logger.debug("Invoking _pkg_pkg_mgr.get_archives().")
-        _pkg_pkg_mgr.get_archives(_pkg_acquire, _pkg_source_list,
-            apt_pkg.PackageRecords(_pkg_cache))
-        _logger.debug("Invoking _pkg_acquire.run().");
-        _pkg_acquire.run()
-        _logger.debug("Invoked _pkg_acquire.run().");
-    apt_pkg.pkgsystem_unlock()
-    _logger.debug("Exiting.");
+            return False
+    # }}}
+
+    def __init__(self):
+        self.args, self.cache, self.logger, self.pkgCache = None, None, None, None
+        parser = argparse.ArgumentParser(description="")
+        parser.add_argument("-d", "--download", action="store_true", default=False, dest="download")
+        parser.add_argument("-t", "--test", action="store", default=False, dest="test")
+        parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
+        self.args = parser.parse_args()
+        self.logger = AptUpgradesLogger(initialLevel=AptUpgradesLogger.VERBOSE if self.args.verbose else logging.INFO)
+
 if __name__ == "__main__":
-    main()
+    exit(AptUpgrades().main())
