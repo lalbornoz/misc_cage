@@ -6,7 +6,7 @@
 #
 
 import apt, apt_pkg
-import argparse, itertools, logging, os, sys, time
+import argparse, hashlib, itertools, json, logging, os, sys, time
 
 # {{{ class AptUpgradesLogger(object)
 class AptUpgradesLogger(object):
@@ -42,6 +42,10 @@ class AptUpgradesLogger(object):
 
 class AptUpgrades(object):
     """APT package upgrades check class"""
+    # {{{ Class variables
+    cacheNewCountMax = 3
+    cacheNewFileName = "~/.cache/AptUpgrades.json"
+    # }}}
 
     # {{{ def _aptLock(self)
     def _aptLock(self):
@@ -67,6 +71,27 @@ class AptUpgrades(object):
             self.logger.logger.error(e)
             return False
     # }}}
+    # {{{ def _isReportNew(self, report)
+    def _isReportNew(self, report):
+        if self.args.new:
+            reportHash = hashlib.sha256(report.encode()).hexdigest()
+            if os.path.exists(self.cacheNewFilename):
+                with open(self.cacheNewFilename, "r") as fileObject:
+                    cacheNew = json.load(fileObject)
+                if cacheNew["hash"] == reportHash:
+                    cacheNew["count"] += 1
+                    printFlag = (cacheNew["count"] <= self.cacheNewCountMax)
+                else:
+                    cacheNew, printFlag = {"count":1, "hash":reportHash}, True
+            else:
+                cacheNew, printFlag = {"count":1, "hash":reportHash}, True
+        else:
+            return True
+        if printFlag:
+            with open(self.cacheNewFilename, "w") as fileObject:
+                json.dump(cacheNew, fileObject)
+        return printFlag
+    # }}}}
     # {{{ def _printReport(self, downloaded, names, reverseDepends, serviceUnits, serviceUnitsReverse, file=sys.stdout)
     def _printReport(self, downloaded, names, reverseDepends, serviceUnits, serviceUnitsReverse, file=sys.stdout):
         report = '''\
@@ -77,7 +102,7 @@ APT package upgrade report
         names_, reverseDepends_ = ", ".join(sorted(tuple(set(names)))), ", ".join(sorted(tuple(set(reverseDepends))))
         report += '''The following packages can be upgraded{}:
 {}'''.format("" if not downloaded else " and have been downloaded", ", ".join(sorted(tuple(set(names)))))
-        if names_ != reverseDepends_:
+        if (names_ != reverseDepends_) and len(reverseDepends_):
             report += '''
 
 The following reverse dependencies, sans library packages, may be affected:
@@ -100,7 +125,8 @@ This upgrade encompasses the following systemd service units:
 
 The reverse dependencies, sans library packages, listed above encompass the following systemd service units:
 {}'''.format(serviceUnitsReverse_)
-        print(report, file=file)
+        if self._isReportNew(report):
+            print(report, file=file)
     # }}}}
 
     # {{{ def filterInstalled(self, pkg)
@@ -198,10 +224,15 @@ The reverse dependencies, sans library packages, listed above encompass the foll
         self.args, self.cache, self.logger, self.pkgCache = None, None, None, None
         parser = argparse.ArgumentParser(description="")
         parser.add_argument("-d", "--download", action="store_true", default=False, dest="download")
+        parser.add_argument("-N", "--new", action="store_true", default=False, dest="new")
         parser.add_argument("-t", "--test", action="store", default=False, dest="test")
         parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
         self.args = parser.parse_args()
         self.logger = AptUpgradesLogger(initialLevel=AptUpgradesLogger.VERBOSE if self.args.verbose else logging.INFO)
+        if self.args.new:
+            self.cacheNewFilename = os.path.abspath(os.path.expanduser(self.cacheNewFileName))
+            if not os.path.exists(os.path.dirname(self.cacheNewFileName)):
+                os.makedirs(os.path.dirname(self.cacheNewFileName))
 
 if __name__ == "__main__":
     exit(AptUpgrades().main())
