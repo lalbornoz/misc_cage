@@ -229,8 +229,8 @@ The reverse dependencies, sans library packages, listed above encompass the foll
         parser.add_argument("-v", "--verbose", action="store_true", default=False, dest="verbose")
         self.args = parser.parse_args()
         self.logger = AptUpgradesLogger(initialLevel=AptUpgradesLogger.VERBOSE if self.args.verbose else logging.INFO)
+        self.cacheNewFilename = os.path.abspath(os.path.expanduser(self.cacheNewFileName))
         if self.args.new:
-            self.cacheNewFilename = os.path.abspath(os.path.expanduser(self.cacheNewFileName))
             if not os.path.exists(os.path.dirname(self.cacheNewFileName)):
                 os.makedirs(os.path.dirname(self.cacheNewFileName))
 
