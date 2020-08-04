@@ -75,8 +75,8 @@ class AptUpgrades(object):
     def _isReportNew(self, report):
         if self.args.new:
             reportHash = hashlib.sha256(report.encode()).hexdigest()
-            if os.path.exists(self.cacheNewFilename):
-                with open(self.cacheNewFilename, "r") as fileObject:
+            if os.path.exists(self.cacheNewFileName):
+                with open(self.cacheNewFileName, "r") as fileObject:
                     cacheNew = json.load(fileObject)
                 if cacheNew["hash"] == reportHash:
                     cacheNew["count"] += 1
@@ -88,7 +88,7 @@ class AptUpgrades(object):
         else:
             return True
         if printFlag:
-            with open(self.cacheNewFilename, "w") as fileObject:
+            with open(self.cacheNewFileName, "w") as fileObject:
                 json.dump(cacheNew, fileObject)
         return printFlag
     # }}}}
