@@ -21,7 +21,7 @@ REMOTE_SCRIPT='
 	status "${?}" update;
 
 	# apt-get -y dist-upgrade
-	pkgs="$(apt-get -y dist-upgrade 2>&1)"; rc="${?}";
+	pkgs="$(apt-get -y -o Dpkg::Options::="--force-confold" dist-upgrade 2>&1)"; rc="${?}";
 	printf "%s\n" "${pkgs}" >>"${log_fname}";
 	pkgs="$(printf "%s\n" "${pkgs}"									|
 		awk '\''
