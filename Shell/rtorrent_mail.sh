@@ -3,6 +3,11 @@
 RTORRENT_BASE_URL="https://[username:password]@hostname[:port]/";
 RTORRENT_MAIL_TO="username";
 
+rmp_encode_uri() {
+	local _ruri="${1#\$}";
+	eval "${_ruri}"=\"\$\(printf \"%s\" \"\$\{${_ruri}\}\" \| sed \'s, ,%20,g\'\)\";
+};
+
 rmp_humanise() {
 	local _rn="${1#\$}";
 
@@ -20,23 +25,38 @@ rmp_humanise() {
 rtorrent_mail() {
 	local	_name="${1}" _base_filename="${2}" _base_path="${3}"		\
 		_is_multi_file="${4}" _size_bytes="${5}" _size_files="${6}"	\
-		_base_dname="" _subject="" _url="";
+		_base_dname="" _fname="" _subject="" _torrent_file=""		\
+		_torrent_file_list="" _url="" _IFS0="${IFS:- 	}";
 
 	[ "${_is_multi_file}" = 1 ] || _is_multi_file="";
 	_base_dname="${_base_path%/*}"; _base_dname="${_base_dname##*/}";
 	_url="${RTORRENT_BASE_URL%/}/${_base_dname%/}/${_base_filename}${_is_multi_file:+/}";
-	_url="$(printf "%s" "${_url}" | sed 's, ,%20,g')";
+	rmp_encode_uri \$_url;
 	rmp_humanise \$_size_bytes || _size_bytes="(error)";
-	/usr/bin/mail				\
-		-s "Finished Torrent ${_name}"	\
-		"${RTORRENT_MAIL_TO}"		\
+	if [ "${_is_multi_file:-0}" -eq 1 ]; then
+		IFS="
+";		for _fname in $(cd "${_base_path}" &&				\
+				find . -type f);
+		do
+			_torrent_file="${RTORRENT_BASE_URL%/}/${_base_dname%/}/${_base_filename%/}/${_fname#./}";
+			rmp_encode_uri \$_torrent_file;
+			_torrent_file_list="${_torrent_file_list:+${_torrent_file_list}
+}${_torrent_file}";
+		done; IFS="${_IFS0}";
+	fi;
+
+	/usr/bin/mail								\
+		-s "Finished Torrent ${_name}"					\
+		"${RTORRENT_MAIL_TO}"						\
 <<-EOF
-This email is to inform you that rtorrent has finished downloading ${_name}, which
-includes ${_size_files} files in ${_size_bytes} in total. This torrent's files are
-available at:
+This email is to inform you that rtorrent has finished downloading ${_name}, which includes ${_size_files} files in ${_size_bytes} in total.
+This torrent's files are available at:
 
 ${_url}
 ${_is_multi_file:+(this torrent has multiple files)}
+${_torrent_file_list:+
+This torrent's files are individually available at:
+${_torrent_file_list}}
 EOF
 };
 
