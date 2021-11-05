@@ -4,7 +4,7 @@
 #include <windows.h>
 
 #define CYGWIN_PATH_WINDOWS	"C:\\Cygwin64\\bin"
-#define VSCODE_PATH_WINDOWS	"C:\\Program Files\\Microsoft VS Code\\Code.exe"
+#define VSCODE_PATH_WINDOWS	"C:\\Program Files\\VSCodium\\VSCodium.exe"
 
 static void envcatf(char **buf, size_t *buf_len, size_t *buf_size, const char *restrict fmt, ...);
 static int err_windows(int eval, const char *fmt, ...);
