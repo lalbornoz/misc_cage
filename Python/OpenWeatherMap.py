@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # OpenWeatherMap.py -- Obtain daily weather from OpenWeatherMap.org
-# Copyright (c) 2018 Lucio Andrés Illanes Albornoz <lucio@lucioillanes.de>
+# Copyright (c) 2018, 2022 Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
 # This project is licensed under the terms of the MIT licence.
 #
 # {{{ ~/.tmux.conf integration example
@@ -22,6 +22,8 @@ class OpenWeatherMap(object):
     # {{{ Class attributes
     apiUrlBase = "https://api.openweathermap.org/data/2.5/weather"
     attrSuffixes = {
+        "extra.dew_point":"°",
+        "main.feels_like":"°",
         "main.humidity":"%",
         "main.pressure":" hPa",
         "main.temp":"°",
@@ -33,6 +35,8 @@ class OpenWeatherMap(object):
         "wind.deg":"°",
         "wind.speed":""}
     attrTitles = {
+        "extra.dew_point":"Dew point",
+        "main.feels_like":"Feels like",
         "main.humidity":"Humidity",
         "main.pressure":"Pressure",
         "main.temp":"Temperature",
@@ -58,8 +62,9 @@ class OpenWeatherMap(object):
        -t imperial|metric..: specifies imperial or metric units (defaults to {self.optionsDefault[units]})
        -v..................: increase verbosity (defaults to: {self.optionsDefault[verbose]})"""
     optionsDefault = {
-        "attrFilter":["main.humidity", "main.pressure", "main.temp", "main.temp_min",
-            "main.temp_max", "name", "visibility", "weather.0.main", "wind.deg", "wind.speed"],
+        "attrFilter":["extra.dew_point", "main.feels_like", "main.humidity", "main.pressure",
+            "main.temp", "main.temp_min", "main.temp_max", "name", "visibility", "weather.0.main",
+            "wind.deg", "wind.speed"],
         "cachePathBase":os.path.expanduser(os.path.join("~", ".cache", "OpenWeatherMap")),
         "city":None, "country":None, "forceFetch":False, "help":False, "outputFormat":"list",
         "purgeAfter":900, "units":"metric", "verbose":False}
@@ -99,6 +104,8 @@ class OpenWeatherMap(object):
             rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName)
         if not rc:
             rc, status, data = self._getDataFetch(apiUrlBase, cacheFilePathName, city, country, units)
+        data["extra"] = {}
+        data["extra"]["dew_point"] = round((data["main"]["temp"] - ((100 - data["main"]["humidity"]) / 5.0)), 2)
         return rc, status, data
     # }}}
     # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName): XXX
