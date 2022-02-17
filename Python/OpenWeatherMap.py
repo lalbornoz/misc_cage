@@ -7,18 +7,41 @@
 # {{{ ~/.tmux.conf integration example
 # HOME_CITY="Hamburg"
 # HOME_COUNTRY="Germany"
-# set-option -g status-interval      60
-# set-option -g status-right        "#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -C $HOME_COUNTRY -p tmux -P \"{white}{u}{Weather condition}{nu} {lgreen}{Feels like} {white}{Temperature} {lcyan}{Dew point}{white} {b}{Humidity}{nb}\" -D \"{grey}{u}{Weather condition}{nu} {Feels like} {Temperature} {Dew point} {b}{Humidity}{nb} | \" -d 2) #[fg=$TMUX_COLOUR]#H %H:%M:%S %a %d-%b-%y"
-# set-option -g status-right-length  95
+# set-option -g status-interval		60
+# set-option -g status-right		"#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -C $HOME_COUNTRY -p tmux -P \"{white}{u}{Weather condition}{nu} {lgreen}{Feels like} {white}{Temperature} {lcyan}{Dew point}{white} {b}{Humidity}{nb} {Wind (speed)}\" -D \"{grey}{u}{Weather condition}{nu} {Feels like} {Temperature} {Dew point} {b}{Humidity}{nb} {Wind (speed)} | \" -d 2) #[fg=$TMUX_COLOUR]#H %H:%M:%S %a %d-%b-%y"
+# set-option -g status-right-length	115
 # }}}
 #
 
+from datetime import datetime
 from getopt import getopt, GetoptError
 from OpenWeatherMapApiKey import OpenWeatherMapApiKey
 import hashlib, json, os, requests, sys, time, urllib.request
 
+# {{{ _capitalise(oldString)
+def _capitalise(oldString):
+    if len(oldString) > 1:
+        return oldString[0].upper() + oldString[1:]
+    else:
+        return oldString
+# }}}
+# {{{ _flattenDict(oldDict, parentKey, sepChar)
+def _flattenDict(oldDict, parentKey, sepChar):
+    flatDict = {}
+    for oldKey, oldVal in oldDict.items():
+        if type(oldVal) == dict:
+            flatDict = {**flatDict, **_flattenDict(oldVal, oldKey, sepChar)}
+        elif type(oldVal) == list:
+            for oldValIdx in range(len(oldVal)):
+                flatDict = {**flatDict, **_flattenDict(oldVal[oldValIdx], oldKey + "." + str(oldValIdx), sepChar)}
+        else:
+            flatDict[oldKey if parentKey == "" else parentKey + sepChar + oldKey] = oldVal
+    return flatDict
+# }}}
+
 class OpenWeatherMap(object):
     """Obtain daily weather from OpenWeatherMap.org"""
+
     # {{{ Class attributes
     apiUrlBase = "https://api.openweathermap.org/data/2.5/weather"
     apiUrlBaseForecast = "https://api.openweathermap.org/data/2.5/forecast"
@@ -48,7 +71,8 @@ class OpenWeatherMap(object):
         "rain.3h":"mm",
         "snow.1h":"mm",
         "snow.3h":"mm",
-        "wind.deg":"°"}
+        "wind.deg":"°",
+        "wind.speed":" km/h"}
     attrTitles = {
         "city.coord.lat":"City geo location, latitude",
         "city.coord.lon":"City geo location, longitude",
@@ -204,8 +228,8 @@ class OpenWeatherMap(object):
     optionsDefault = {
         "cachePathBase":os.path.expanduser(os.path.join("~", ".cache", "OpenWeatherMap")),
         "city":None, "country":None, "forceFetch":False, "forecastDays":1,
-        "forecastFmt":"{grey}{Weather condition} Dew point: {Dew point} Feels like: {Feels like} {Humidity} {Temperature} | ",
-        "formatString":"{Weather condition} Dew point: {Dew point} Feels like: {Feels like} {Humidity} {Temperature}",
+        "forecastFmt":"{grey}{u}{Weather condition}{nu} {Feels like} {Temperature} {Dew point} {Humidity} | ",
+        "formatString":"{white}{u}{Weather condition}{nu} {lgreen}{Feels like} {white}{Temperature} {lcyan}{Dew point} {white}{b}{Humidity}{nb}",
         "help":False, "listAnsi":False, "listAttrs":False, "outputFormat":"list",
         "purgeAfter":900, "units":"metric", "verbose":False}
     optionsString = "a:c:C:d:D:fhlLp:P:t:u:v"
@@ -215,27 +239,8 @@ class OpenWeatherMap(object):
         "L":"listAnsi", "p":"outputFormat", "P":"formatString", "t":"cachePathBase",
         "u":"units", "v":"verbose"}
     # }}}
-    # {{{ _capitalise(self, oldString): XXX
-    def _capitalise(self, oldString):
-        if len(oldString) > 1:
-            return oldString[0].upper() + oldString[1:]
-        else:
-            return oldString
-    # }}}
-    # {{{ _flattenDict(self, oldDict, parentKey, sepChar): XXX
-    def _flattenDict(self, oldDict, parentKey, sepChar):
-        flatDict = {}
-        for oldKey, oldVal in oldDict.items():
-            if type(oldVal) == dict:
-                flatDict = {**flatDict, **self._flattenDict(oldVal, oldKey, sepChar)}
-            elif type(oldVal) == list:
-                for oldValIdx in range(len(oldVal)):
-                    flatDict = {**flatDict, **self._flattenDict(oldVal[oldValIdx], oldKey + "." + str(oldValIdx), sepChar)}
-            else:
-                flatDict[oldKey if parentKey == "" else parentKey + sepChar + oldKey] = oldVal
-        return flatDict
-    # }}}
-    # {{{ _getData(self, apiUrlBase, cachePathBase, city, country, forceFetch, units, isSingle=True): XXX
+
+    # {{{ _getData(self, apiUrlBase, cachePathBase, city, country, forceFetch, units, isSingle=True)
     def _getData(self, apiUrlBase, cachePathBase, city, country, forceFetch, units, isSingle=True):
         cacheKey = "{}\0{}\0{}\0{}\0{}\0".format(apiUrlBase, city, country, time.strftime("%d%m%Y"), units)
         cacheFileName = hashlib.sha256(cacheKey.encode()).hexdigest()
@@ -246,9 +251,9 @@ class OpenWeatherMap(object):
             rc, status, data = self._getDataCache(apiUrlBase, cacheFilePathName)
         if not rc:
             rc, status, data = self._getDataFetch(apiUrlBase, cacheFilePathName, city, country, units)
-        return rc, status, data
+        return self._processDataList(data, rc, status)
     # }}}
-    # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName): XXX
+    # {{{ _getDataCache(self, apiUrlBase, cacheFilePathName)
     def _getDataCache(self, apiUrlBase, cacheFilePathName):
         if not os.path.isdir(os.path.dirname(cacheFilePathName)):
             os.makedirs(os.path.dirname(cacheFilePathName))
@@ -259,7 +264,7 @@ class OpenWeatherMap(object):
                 data = json.load(fileObject)
             return True, 200, data
     # }}}
-    # {{{ _getDataFetch(self, apiUrlBase, cacheFilePathName, city, country, units): XXX
+    # {{{ _getDataFetch(self, apiUrlBase, cacheFilePathName, city, country, units)
     def _getDataFetch(self, apiUrlBase, cacheFilePathName, city, country, units):
         apiUrl = "{}?APPID={}&units={}&q={},+{}".format(
             apiUrlBase, OpenWeatherMapApiKey.openWeatherMapApiKey, units, city, country)
@@ -271,75 +276,7 @@ class OpenWeatherMap(object):
             rc = True
         return rc, int(data["cod"]), data
     # }}}
-    # {{{ _log(self, msg): Log single message to std{err,out} w/ timestamp
-    def _log(self, msg, isError=False, isVerbose=False):
-        if isError:
-            print("{} [91mError: {}[0m".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg), file=sys.stderr)
-        elif isVerbose and self.options["verbose"]:
-            print("{} [36m{}[0m".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg))
-        elif not isVerbose:
-            print("{} {}".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg))
-    # }}}
-    # {{{ _printAttributes(self): XXX
-    def _printAttributes(self):
-        print("OpenWeather.org API attributes:")
-        attrsPadding = 0
-        for attrKey, attrTitle in self.attrTitles.items():
-            attrsPadding = max(attrsPadding, len(attrTitle))
-        for attrKey, attrTitle in sorted(self.attrTitles.items(), key=lambda kv: kv[1]):
-            print(("{:" + str(attrsPadding) + "} (API attribute key: {})").format(attrTitle, attrKey))
-    # }}}
-    # {{{ _printAttributesAnsiTmux(self): XXX
-    def _printAttributesAnsiTmux(self):
-        if self.options["outputFormat"] == "tmux":
-            print("tmux attributes:")
-            attrsPadding = 0
-            for attrKey, attrEsc in self.attrTmux.items():
-                attrsPadding = max(attrsPadding, len(attrKey))
-            for attrKey, attrEsc in self.attrTmuxColours.items():
-                attrsPadding = max(attrsPadding, len(attrKey))
-            for attrKey, _ in sorted(self.attrTmux.items(), key=lambda kv: kv[0]):
-                attrEsc = self.attrAnsi[attrKey]
-                print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
-            print("")
-            for attrKey, _ in sorted(self.attrTmuxColours.items(), key=lambda kv: kv[0]):
-                attrEsc = self.attrAnsiColours[attrKey]
-                print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
-
-        elif self.options["outputFormat"] == "str":
-            print("ANSI attributes:")
-            attrsPadding = 0
-            for attrKey, attrEsc in self.attrAnsi.items():
-                attrsPadding = max(attrsPadding, len(attrKey))
-            for attrKey, attrEsc in self.attrAnsiColours.items():
-                attrsPadding = max(attrsPadding, len(attrKey))
-            for attrKey, attrEsc in sorted(self.attrAnsi.items(), key=lambda kv: kv[0]):
-                print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
-            print("")
-            for attrKey, attrEsc in sorted(self.attrAnsiColours.items(), key=lambda kv: kv[0]):
-                print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
-    # }}}
-    # {{{ _printAsList(self, attrsPretty): XXX
-    def _printAsList(self, attrsPretty):
-        attrsPadding, output = 0, ""
-        for attrKey, attrValue in attrsPretty.items():
-            attrsPadding = max(attrsPadding, len(attrKey))
-        for attrKey, attrValue in sorted(attrsPretty.items(), key=lambda kv: kv[0]):
-            output += (("{:" + str(attrsPadding) + "}: {}").format(attrKey, attrValue))
-    # }}}
-    # {{{ _printAsStr(self, attrsPretty, dayCount, dayMax): XXX
-    def _printAsStr(self, attrsPretty, dayCount, dayMax):
-        return (self.options["formatString"] if ((self.options["forecastDays"] == 1) or (dayCount == dayMax))   \
-                    else self.options["forecastFmt"])                                                           \
-                        .format(**{**attrsPretty, **self.attrAnsi, **self.attrAnsiColours})
-    # }}}
-    # {{{ _printAsTmux(self, attrsPretty, dayCount, dayMax): XXX
-    def _printAsTmux(self, attrsPretty, dayCount, dayMax):
-        return (self.options["formatString"] if ((self.options["forecastDays"] == 1) or (dayCount == dayMax))   \
-                    else self.options["forecastFmt"])                                                           \
-                        .format(**{**attrsPretty, **self.attrTmux, **self.attrTmuxColours})
-    # }}}
-    # {{{ _purgeCache(self, cacheFilePathName, cachePathBase): XXX
+    # {{{ _purgeCache(self, cacheFilePathName, cachePathBase)
     def _purgeCache(self, cacheFilePathName, cachePathBase):
         if os.path.isdir(cachePathBase):
             for cacheFileName in os.listdir(cachePathBase):
@@ -350,26 +287,129 @@ class OpenWeatherMap(object):
                     and ((timeNow - cacheFileMTime) >= int(self.options["purgeAfter"])):
                         os.remove(os.path.join(cachePathBase, cacheFileName))
     # }}}
-    # {{{ _usage(self, argv0, options): XXX
+
+    # {{{ _log(self, msg): Log single message to std{err,out} w/ timestamp
+    def _log(self, msg, isError=False, isVerbose=False):
+        if isError:
+            print("{} [91mError: {}[0m".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg), file=sys.stderr)
+        elif isVerbose and self.options["verbose"]:
+            print("{} [36m{}[0m".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg))
+        elif not isVerbose:
+            print("{} {}".format(time.strftime("%d-%^b-%Y %H:%M:%S"), msg))
+    # }}}
+
+    # {{{ _printAsList(self, attrsPretty, dayCount, dayMax)
+    def _printAsList(self, attrsPretty, dayCount, dayMax):
+        attrsPadding, output = 0, ""
+        for attrKey, attrValue in attrsPretty.items():
+            attrsPadding = max(attrsPadding, len(attrKey))
+        for attrKey, attrValue in sorted(attrsPretty.items(), key=lambda kv: kv[0]):
+            output += (("{:" + str(attrsPadding) + "}: {}\n").format(attrKey, attrValue))
+        return output
+    # }}}
+    # {{{ _printAsStr(self, attrsPretty, dayCount, dayMax)
+    def _printAsStr(self, attrsPretty, dayCount, dayMax):
+        return (self.options["formatString"] if ((self.options["forecastDays"] == 1) or (dayCount == dayMax))   \
+                    else self.options["forecastFmt"])                                                           \
+                        .format(**{**attrsPretty, **self.attrAnsi, **self.attrAnsiColours})
+    # }}}
+    # {{{ _printAsTmux(self, attrsPretty, dayCount, dayMax)
+    def _printAsTmux(self, attrsPretty, dayCount, dayMax):
+        return (self.options["formatString"] if ((self.options["forecastDays"] == 1) or (dayCount == dayMax))   \
+                    else self.options["forecastFmt"])                                                           \
+                        .format(**{**attrsPretty, **self.attrTmux, **self.attrTmuxColours})
+    # }}}
+
+    # {{{ _processDataList(self, data_, rc, status)
+    def _processDataList(self, data_, rc, status):
+        if rc:
+            data, dayLast = [], None
+            if self.options["forecastDays"] > 1:
+                for n in range(0, len(data_["list"])):
+                    dt = datetime.fromtimestamp(data_["list"][n]["dt"])
+                    if (dayLast != None) and (dayLast == dt.day):
+                        continue
+                    else:
+                        dayLast = dt.day
+                        data += [{**data_, **(data_["list"][n])}]
+                        data[-1]["extra"] = {}
+                        data[-1]["extra"]["dew_point"] =        \
+                            round((data[-1]["main"]["temp"] -   \
+                                ((100 - data[-1]["main"]["humidity"]) / 5.0)), 2)
+                data = data[0:self.options["forecastDays"]]
+            else:
+                data = [data_]
+                data[-1]["extra"] = {}
+                data[-1]["extra"]["dew_point"] =        \
+                    round((data[-1]["main"]["temp"] -   \
+                        ((100 - data[-1]["main"]["humidity"]) / 5.0)), 2)
+        else:
+            data_ = []
+        return rc, status, data
+    # }}}
+    # {{{ _processItem(self, attrsDict, attrsFlatDict, attrsPretty)
+    def _processItem(self, attrsDict, attrsFlatDict, attrsPretty):
+        for attrKey, attrValue in attrsFlatDict.items():
+            if attrKey in ["weather.0.description", "weather.0.main"]:
+                attrsDict[attrKey] = _capitalise(attrsFlatDict[attrKey])
+            else:
+                attrsDict[attrKey] = attrValue
+
+        for attrKey, attrValue in attrsDict.items():
+            if attrKey in self.attrTitles:
+                attrsPretty[self.attrTitles[attrKey]] = str(attrValue)
+                if attrKey in self.attrSuffixes:
+                    attrsPretty[self.attrTitles[attrKey]] += self.attrSuffixes[attrKey]
+            elif (attrKey not in self.attrIgnore)   \
+            and  (not attrKey.startswith("list.")):
+                print("Warning: title string not found for key {}".format(attrKey), file=sys.stderr)
+    # }}}
+
+    # {{{ _usage(self, argv0, options)
     def _usage(self, argv0, options):
-        if options["city"] == None:
-            print("error: missing city", file=sys.stderr)
-        if options["country"] == None:
-            print("error: missing country", file=sys.stderr)
         print(self.helpString.format(**locals()), file=sys.stderr)
     # }}}
-    # {{{ synchronise(self): XXX
-    def synchronise(self):
-        if self.options["listAnsi"] or self.options["listAttrs"]:
-            if self.options["listAttrs"]:
-                self._printAttributes()
-            if self.options["listAnsi"]:
-                if self.options["listAttrs"]:
-                    print("")
-                self._printAttributesAnsiTmux()
-            return False
+    # {{{ _usageListAttributes(self, options)
+    def _usageListAttributes(self, options):
+        print("OpenWeather.org API attributes:")
+        attrsPadding = 0
+        for attrKey, attrTitle in self.attrTitles.items():
+            attrsPadding = max(attrsPadding, len(attrTitle))
+        for attrKey, attrTitle in sorted(self.attrTitles.items(), key=lambda kv: kv[1]):
+            print(("{:" + str(attrsPadding) + "} (API attribute key: {})").format(attrTitle, attrKey))
+    # }}}
+    # {{{ _usageListAttributesAnsiTmux(self, options)
+    def _usageListAttributesAnsiTmux(self, options):
+        if options["outputFormat"] in ["list", "str"]:
+            items, itemsColours, title = self.attrAnsi.items(), self.attrAnsiColours.items(), "ANSI attributes"
+        elif options["outputFormat"] == "tmux":
+            items, itemsColours, title = self.attrTmux.items(), self.attrTmuxColours.items(), "tmux attributes"
+        else:
+            return
 
-        rc, status, data_ = self._getData(
+        print(title + ":")
+        attrsPadding = 0
+        for attrKey, attrEsc in items:
+            attrsPadding = max(attrsPadding, len(attrKey))
+        for attrKey, attrEsc in itemsColours:
+            attrsPadding = max(attrsPadding, len(attrKey))
+        for attrKey, _ in sorted(items, key=lambda kv: kv[0]):
+            attrEsc = self.attrAnsi[attrKey]
+            print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
+        print("")
+        for attrKey, _ in sorted(itemsColours, key=lambda kv: kv[0]):
+            attrEsc = self.attrAnsiColours[attrKey]
+            print(("{}{:" + str(attrsPadding) + "}{}").format(attrEsc, attrKey, "\x1b[0m"))
+    # }}}
+
+    # {{{ synchronise(self)
+    def synchronise(self):
+        if self.options["units"] == "imperial":
+            self.attrSuffixes["wind.speed"] = " mph"
+        elif self.options["units"] == "metric":
+            self.attrSuffixes["wind.speed"] = " km/h"
+
+        rc, status, data = self._getData(
             self.apiUrlBase if (self.options["forecastDays"] == 1) else self.apiUrlBaseForecast,
             self.options["cachePathBase"],
             self.options["city"],
@@ -377,34 +417,20 @@ class OpenWeatherMap(object):
             self.options["forceFetch"],
             self.options["units"],
             (self.options["forecastDays"] == 1))
-        if rc:
-            dataList = ([data_]                                 \
-                    if (self.options["forecastDays"] == 1)      \
-                        else [{**data_, **(data_["list"][n])}   \
-                            for n in range(min(self.options["forecastDays"], len(data_["list"])))])
-            dataList.reverse()
-            dayCount, dayMax, output = 0, len(dataList), []
-            for data in dataList:
-                dayCount += 1
-                data["extra"] = {}
-                data["extra"]["dew_point"] = round((data["main"]["temp"] - ((100 - data["main"]["humidity"]) / 5.0)), 2)
 
-                attrsDict, attrsFlatDict, attrsPretty = {}, self._flattenDict(data, "", "."), {}
-                for attrKey, attrValue in attrsFlatDict.items():
-                    if attrKey in ["weather.0.description", "weather.0.main"]:
-                        attrsDict[attrKey] = self._capitalise(attrsFlatDict[attrKey])
-                    else:
-                        attrsDict[attrKey] = attrValue
-                for attrKey, attrValue in attrsDict.items():
-                    if attrKey in self.attrTitles:
-                        attrsPretty[self.attrTitles[attrKey]] = str(attrValue)
-                        if attrKey in self.attrSuffixes:
-                            attrsPretty[self.attrTitles[attrKey]] += self.attrSuffixes[attrKey]
-                    elif (attrKey not in self.attrIgnore)   \
-                    and  (not attrKey.startswith("list.")):
-                        print("Warning: title string not found for key {}".format(attrKey), file=sys.stderr)
+        if rc:
+            dayCount, dayMax, output = 0, len(data), []
+            if self.options["outputFormat"] in ["str", "tmux"]:
+                data.reverse()
+
+            for data in data:
+                dayCount += 1
+                attrsDict, attrsFlatDict, attrsPretty = {}, _flattenDict(data, "", "."), {}
+                self._processItem(attrsDict, attrsFlatDict, attrsPretty)
+
                 if self.options["outputFormat"] == "list":
-                    output += [self._printAsList(attrsPretty)]
+                    output += [self._printAsList(attrsPretty, dayCount, dayMax)]
+                    output += "\n"
                 elif self.options["outputFormat"] == "str":
                     output += [self._printAsStr(attrsPretty, dayCount, dayMax)]
                 elif self.options["outputFormat"] == "tmux":
@@ -412,6 +438,7 @@ class OpenWeatherMap(object):
                 else:
                     self._log("unknown output format `{}'".format(self.options["outputFormat"]), isError=True)
                     rc = 1
+
             for outputNum in range(len(output)):
                 print(output[outputNum], end="")
             if len(output):
@@ -434,9 +461,23 @@ class OpenWeatherMap(object):
                 options[optionName] = int(optionArg)
             else:
                 options[optionName] = optionArg
-        if options["help"]              \
-        or options["city"] == None      \
-        or options["country"] == None:
+
+        if options["help"]:
+            self._usage(argv[0], options); exit(0);
+        elif options["listAnsi"] or options["listAttrs"]:
+            if options["listAttrs"]:
+                self._usageListAttributes(options)
+            if options["listAnsi"]:
+                if options["listAttrs"]:
+                    print("")
+                self._usageListAttributesAnsiTmux(options)
+            exit(0)
+        elif options["city"] == None    \
+        or   options["country"] == None:
+            if options["city"] == None:
+                print("error: missing city", file=sys.stderr)
+            if options["country"] == None:
+                print("error: missing country", file=sys.stderr)
             self._usage(argv[0], options); exit(0);
         else:
             self.options = options
