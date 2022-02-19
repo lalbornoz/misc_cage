@@ -336,6 +336,10 @@ class OpenWeatherMap(object):
                         data[-1]["extra"]["dew_point"] =        \
                             round((data[-1]["main"]["temp"] -   \
                                 ((100 - data[-1]["main"]["humidity"]) / 5.0)), 2)
+                        if  ("wind" in data[-1])                \
+                        and ("speed" in data[-1]["wind"]):
+                            data[-1]["wind"]["speed"] =         \
+                                    round((data[-1]["wind"]["speed"] * 3.6), 2)
                 data = data[0:self.options["forecastDays"]]
             else:
                 data = [data_]
