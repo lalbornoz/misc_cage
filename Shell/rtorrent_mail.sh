@@ -41,7 +41,7 @@ rtorrent_mail() {
 	if [ "${_is_multi_file:-0}" -eq 1 ]; then
 		IFS="
 ";		for _fname in $(cd "${_base_path}" &&				\
-				find . -type f);
+				find . -type f | sort -V);
 		do
 			_torrent_file="${RTORRENT_BASE_URL%/}/${_base_dname%/}/${_base_filename%/}/${_fname#./}";
 			rmp_encode_uri \$_torrent_file;
