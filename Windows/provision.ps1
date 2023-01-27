@@ -1,3 +1,5 @@
+# https://www.naut.ca/blog/2019/07/29/windows-10-ltsc-post-installation/
+# rundll32 inetcpl.cpl ClearMyTracksByProcess 1
 # Must be invoked w/ -ExecutionPolicy Bypass. Requires Powershell 5.0+.
 
 # {{{ Script entry point & global variables
