@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 #
 # OpenWeatherMap.py -- Obtain daily weather from OpenWeatherMap.org
-# Copyright (c) 2018, 2022 Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
+# Copyright (c) 2018, 2022, 2023 Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
 # This project is licensed under the terms of the MIT licence.
 #
 # {{{ ~/.tmux.conf integration example
 # HOME_CITY="Hamburg"
 # HOME_COUNTRY="Germany"
 # set-option -g status-interval		60
-# set-option -g status-right		"#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -C $HOME_COUNTRY -p tmux -P \"{white}{u}{Weather condition}{nu} {lgreen}{Feels like} {white}{Temperature} {lcyan}{Dew point}{white} {b}{Humidity}{nb} {Wind (speed)}\" -D \"{grey}{u}{Weather condition}{nu} {Feels like} {Temperature} {Dew point} {b}{Humidity}{nb} {Wind (speed)} | \" -d 2) #[fg=$TMUX_COLOUR]#H %H:%M:%S %a %d-%b-%y"
+# set-option -g status-right		"#[fg=brightblue]#(~/.local/bin/OpenWeatherMap.py -c $HOME_CITY -C $HOME_COUNTRY -p tmux -P \"{white}{u}{Weather condition}{nu} {lgreen}{Feels like} {white}{Temperature} {lcyan}{Dew point}{white} {b}{Humidity}{nb} {Wind (speed)}\" -D \"{grey}{u}{Weather condition}{nu} {Feels like} {Temperature} {Dew point} {b}{Humidity}{nb} {Wind (speed)} | \") #[fg=$TMUX_COLOUR]#H %H:%M:%S %a %d-%b-%y"
 # set-option -g status-right-length	115
 # }}}
 #
