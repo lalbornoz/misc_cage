@@ -65,12 +65,12 @@ usage() {
 		printf "%s\n" "${_msg}" >&2;
 	fi;
 
-	echo "usage: ${0} [-c] [-d dest] [-h] [-L] [-n] [-s] [-S <source>] [-y] [--] target[..]" >&2;
+	echo "usage: ${0} [-c] [-d dest] [-h] [-L] [-n] [-s <limit>] [-S <source>] [-y] [--] target[..]" >&2;
 	echo "       -c...........: pass -c to rsync" >&2;
 	echo "       -h...........: show this screen" >&2;
 	echo "       -L...........: do not create log file" >&2;
 	echo "       -n...........: dry run" >&2;
-	echo "       -s...........: force bandwidth limit of 768K" >&2;
+	echo "       -s <limit>...: force bandwidth limit of <limit>" >&2;
 	echo "       -S <source>..: specify source directory (defaults to: ${HOME})" >&2;
 	echo "       -y...........: automatic yes to prompts" >&2;
 
