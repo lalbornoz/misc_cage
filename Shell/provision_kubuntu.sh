@@ -183,23 +183,23 @@ provision_110_software_install() {
 	rc apt update -y || return "${?}";
 	rc apt dist-upgrade -y || return "${?}";
 
-	rc apt install -y							\
-		apt-file iotop keyutils lm-sensors				\
-		ifstat iptables-persistent open-iscsi openssh-server tor	\
-		linux-image-lowlatency						\
-										\
-	       	build-essential clang-15 clangd-15				\
-		dos2unix fzf gcp git python3-pip ripgrep tmux sqlite3 zsh	\
-		ffmpeg yt-dlp							\
-		gnupg2 mutt ncat neovim net-tools ngrep rsync wget		\
-										\
-		codium								\
-		firefox nicotine systray-x thunderbird				\
-		gimp kolourpaint smplayer					\
-		keepassxc meteo-qt psensor xfce4-timer-plugin			\
-		libreoffice-calc libreoffice-writer neovim-qt			\
-		wine winetricks							\
-										\
+	rc apt install -y								\
+		apt-file iotop keyutils lm-sensors					\
+		ifstat iptables-persistent open-iscsi openssh-server tor		\
+		linux-image-lowlatency							\
+											\
+	       	build-essential clang-15 clangd-15					\
+		dos2unix fd-find fzf gcp git python3-pip ripgrep tmux sqlite3 zsh	\
+		ffmpeg yt-dlp								\
+		gnupg2 irssi mutt ncat neovim net-tools ngrep rsync wget		\
+											\
+		codium									\
+		firefox nicotine systray-x thunderbird					\
+		gimp kolourpaint smplayer						\
+		keepassxc meteo-qt psensor xfce4-timer-plugin				\
+		libreoffice-calc libreoffice-writer neovim-qt				\
+		wine winetricks								\
+											\
 		|| return "${?}";
 
 	if [ "${HOSTNAME#*-pc}" != "${HOSTNAME}" ]; then
