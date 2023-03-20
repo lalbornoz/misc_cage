@@ -189,9 +189,11 @@ provision_110_software_install() {
 		linux-image-lowlatency							\
 											\
 	       	build-essential clang-15 clangd-15					\
-		dos2unix fd-find fzf gcp git python3-pip ripgrep tmux sqlite3 zsh	\
-		ffmpeg yt-dlp								\
-		gnupg2 irssi mutt ncat neovim net-tools ngrep rsync wget		\
+		texinfo texlive texlive-lang-german texlive-latex-extra			\
+		dos2unix fd-find fzf gcp ripgrep					\
+		ffmpeg									\
+		git irssi mutt ncat net-tools ngrep python3-pip rsync wget yt-dlp	\
+		gnupg2 neovim tmux sqlite3 zsh						\
 											\
 		codium									\
 		firefox nicotine systray-x thunderbird					\
