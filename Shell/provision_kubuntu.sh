@@ -198,7 +198,7 @@ provision_110_software_install() {
 		codium									\
 		firefox nicotine systray-x thunderbird					\
 		gimp kolourpaint smplayer						\
-		keepassxc meteo-qt psensor xfce4-timer-plugin				\
+		keepassxc meteo-qt psensor redshift redshift-gtk xfce4-timer-plugin	\
 		libreoffice-calc libreoffice-writer neovim-qt				\
 		wine winetricks								\
 											\
