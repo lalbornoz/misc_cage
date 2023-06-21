@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# roarie's [K]ubuntu >=22.10 provisioning script
+# roarie's [X]ubuntu >=22.10 provisioning script
 #
 
 #
@@ -190,7 +190,7 @@ provision_110_software_install() {
 											\
 	       	build-essential clang-15 clangd-15					\
 		texinfo texlive texlive-lang-german texlive-latex-extra			\
-		dos2unix fd-find fzf gcp ripgrep					\
+		dos2unix fd-find fzf gcp pandoc ripgrep					\
 		ffmpeg									\
 		git irssi mutt ncat net-tools ngrep python3-pip rsync wget yt-dlp	\
 		gnupg2 neovim tmux sqlite3 zsh						\
