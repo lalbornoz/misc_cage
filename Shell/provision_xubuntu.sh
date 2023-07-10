@@ -185,7 +185,7 @@ provision_110_software_install() {
 
 	rc apt install -y								\
 		apt-file iotop keyutils lm-sensors					\
-		ifstat iptables-persistent open-iscsi openssh-server tor		\
+		btop htop ifstat iptables-persistent open-iscsi openssh-server tor	\
 		linux-image-lowlatency							\
 											\
 	       	build-essential clang-15 clangd-15					\
