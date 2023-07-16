@@ -310,6 +310,8 @@ provision_210_services() {
 	rc systemctl enable iscsid || return "${?}";
 
 	rc systemctl disable tor || return "${?}";
+	rc systemctl disable plocate-updatedb.service || return "${?}";
+	rc systemctl disable plocate-updatedb.timer || return "${?}";
 
 	rc systemctl disable apport || return "${?}";
 	rc systemctl mask apport || return "${?}";
