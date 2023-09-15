@@ -9,11 +9,9 @@ if ($log -eq 1) {Start-Transcript "provision.log"}
 New-PSDrive HKU Registry HKEY_USERS
 
 $AdministratorPassword = (Read-Host -AsSecureString "Enter new password for Administrator")
-$CygwinPath = "C:\tools\cygwin"
-$PackagesChocolatey = "7zip.install audacity audacity-lame birdtray bleachbit classic-shell Cygwin dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install nvidia-display-driver mpc-hc mumble OpenOffice openvpn PDFCreator processhacker putty.install python3 rufus speedfan sysinternals thunderbird tor-browser vim vscode winfsp wireshark"
-$PackagesCygwin = "bc,bind-utils,cron,curl,cygutils-extra,diffutils,dos2unix,gcc,git,gnupg2,less,lftp,make,man-db,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,msmtp,nc,openssh,openssl,patch,perl-URI,procps-ng,psmisc,python2,python3,rsync,socat,ssh-pageant,tmux,unzip,zsh,vim,wget,whois,zip"
+$PackagesChocolatey = "7zip.install audacity audacity-lame birdtray bleachbit classic-shell dejavufonts electrum firefox f.lux foobar2000 foxitreader hashcheck keepass.install nvidia-display-driver mpc-hc mumble OpenOffice openvpn PDFCreator processhacker putty.install python3 rufus speedfan sysinternals thunderbird tor-browser vim vscode winfsp wireshark"
 $StepLimit = 14;
-$UserName = "lucio"
+$UserName = "lucia"
 $UserSID = (Get-WmiObject win32_useraccount | Where-Object -EQ -Property "name" -Value $UserName).SID
 $UserProfile = "C:\Users\$UserName"
 # }}}
@@ -68,17 +66,16 @@ progress "Add {Arabic (Jordan),German (Germany),English (UK),Spanish (Chile)} ke
 # }}}
 # {{{ Allow creation of symbolic links
 progress "Allow creation of symbolic links" {
-	Add-LocalGroupMember -Group "Users" -Member "lucio"
-	Remove-LocalGroupMember -Group "Administrators" -Member "lucio"
-	Remove-LocalGroupMember -Group "HomeUsers" -Member "lucio"
+	Add-LocalGroupMember -Group "Users" -Member "lucia"
+	Remove-LocalGroupMember -Group "Administrators" -Member "lucia"
+	Remove-LocalGroupMember -Group "HomeUsers" -Member "lucia"
 	Enable-LocalUser -Name "Administrator"
 	Set-LocalUser -Name "Administrator" -Password $AdministratorPassword
 	Rename-LocalUser "Administrator" "root"
 	secedit /export /cfg "secpol.cfg"
-	 (gc secpol.cfg).replace('SeCreateSymbolicLinkPrivilege = ', 'SeCreateSymbolicLinkPrivilege = lucio, ') | Out-File "secpol.cfg"
+	 (gc secpol.cfg).replace('SeCreateSymbolicLinkPrivilege = ', 'SeCreateSymbolicLinkPrivilege = lucia, ') | Out-File "secpol.cfg"
 	 secedit /configure /db "$env:windir\security\local.sdb" /cfg "secpol.cfg"
 	Remove-Item "secpol.cfg"
-	#New-ItemProperty -Name "CYGWIN" -Path "HKU:$UserSID\Environment" -Type String -Value "winsymlinks:native"
 }
 # }}}
 # {{{ Configure accessibility, case sensitivity, Explorer, taskbar & VSS registry settings
@@ -168,19 +165,6 @@ progress "Install Chocolatey and Windows packages w/ Chocolatey" {
 	} while ($LastExitCode -ne 0)
 }
 # }}}
-# {{{ Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct {$PATH,%Path%} & hide Cygwin SSH user in UAC prompt
-progress "Install Cygwin packages, disable SSH non-pubkey authentication OOTB, enforce posix=1 for /cygdrive in Cygwin and correct %Path% & hide Cygwin SSH user in UAC prompt" {
-	& "$CygwinPath\cygwinsetup" -nqWP $PackagesCygwin
-	& "$CygwinPath\bin\ln" '-fs' '/bin/putclip' '/bin/pbcopy'
-	& "$CygwinPath\bin\sed" '-i.dist' -e 's/^#\?\(Hostbased\|Password\|ChallengeResponse\|Kerberos\|GSSAPI\)Authentication\s\+\(yes\|no\)\s*$/\1Authentication no/' -e 's/^#\?PubkeyAuthentication\s\+\(yes\|no\)\s*$/PubkeyAuthentication yes/' /etc/defaults/etc/sshd_config
-	& "$CygwinPath\bin\sed" '-i.dist' -e 's/posix=0/posix=1/' /etc/fstab
-	& "$CygwinPath\bin\sed" '-i.dist' -e 's,^\(\s*PATH="\)\(.\+\),\1/bin:\2,p' /etc/profile /etc/zprofile
-	$Path = (Get-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment").Path
-	$Path.Replace("\Windows\system32", "\Windows\System32")
-	Set-ItemProperty -Name "Path" -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" -Value $Path
-	New-ItemProperty -Force -Name "cyg_server" -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\SpecialAccounts\UserList" -Type DWord -Value 0
-}
-# }}}
 # {{{ Place {foobar2000,Pageant,Thunderbird} into Startup group & setup SpeedFan autostart scheduled task
 progress "Place {foobar2000,Pageant,Thunderbird} into Startup group & setup SpeedFan autostart scheduled task" {
 	Copy-Item -Destination "$UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup" -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\foobar2000.lnk"
@@ -192,18 +176,6 @@ progress "Place {foobar2000,Pageant,Thunderbird} into Startup group & setup Spee
 	$principal = New-ScheduledTaskPrincipal -RunLevel Highest -UserID $UserName
 	$trigger = New-ScheduledTaskTrigger -AtLogOn
 	Register-ScheduledTask -Action $action -Description "SpeedFan" -Principal $principal -TaskName "SpeedFan" -Trigger $trigger
-}
-# }}}
-# {{{ Set Documents folder location to $CygwinPath\home\$UserName
-progress "Set Documents folder location to $CygwinPath\home\$UserName" {
-	if (!(Test-Path -Path "$CygwinPath\home\$UserName")) {
-		New-Item -ItemType Directory -Path "$CygwinPath\home\$UserName"
-		$Acl = Get-Acl -Path "$CygwinPath\home\$UserName"
-		$Acl.SetOwner((New-Object -ArgumentList "$UserName" -TypeName System.Security.Principal.NTAccount))
-		Set-Acl -AclObject $Acl -Path "$CygwinPath\home\$UserName"
-	}
-	Set-ItemProperty -Name "Personal" -Path "HKU:$UserSID\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders" -Value "$CygwinPath\home\$UserName"
-	Stop-Process -Force -ProcessName explorer
 }
 # }}}
 
