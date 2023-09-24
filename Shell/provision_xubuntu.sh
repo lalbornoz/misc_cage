@@ -185,6 +185,7 @@ provision_110_software_install() {
 
 	rc apt install -y								\
 		apt-file iotop keyutils lm-sensors					\
+		bsd-mailx dovecot-imapd							\
 		btop htop ifstat iptables-persistent open-iscsi openssh-server tor	\
 		linux-image-lowlatency							\
 											\
