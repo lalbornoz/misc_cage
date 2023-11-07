@@ -2,6 +2,7 @@
 
 # Imgur script by Bart Nagel <bart@tremby.net>
 # Improvements by Tino Sino <robottinosino@gmail.com>
+# Fixed wrt. pathnames w/ whitespaces in it - smfh guys, seriously? by Lucía Andrea Illanes Albornoz <lucia@luciaillanes.de>
 # Version 6 or more
 # I release this into the public domain. Do with it what you will.
 # The latest version can be found at https://github.com/tremby/imgur.sh
@@ -26,9 +27,9 @@ function usage {
 }
 
 # Function to upload a path
-# First argument should be a content spec understood by curl's -F option
+# First argument should be a content spec understood by curl's -T option
 function upload {
-	curl -s -H "Authorization: Client-ID $client_id" -H "Expect: " -F "image=$1" https://api.imgur.com/3/image.xml
+	curl -s -H "Authorization: Client-ID $client_id" -H "Expect: " -X POST -T "$1" https://api.imgur.com/3/image.xml
 	# The "Expect: " header is to get around a problem when using this through
 	# the Squid proxy. Not sure if it's a Squid bug or what.
 }
@@ -68,7 +69,7 @@ while [ $# -gt 0 ]; do
 			errors=true
 			continue
 		fi
-		response=$(upload "@$file") 2>/dev/null
+		response=$(upload "$file") 2>/dev/null
 	fi
 
 	if [ $? -ne 0 ]; then
