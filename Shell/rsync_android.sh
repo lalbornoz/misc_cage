@@ -84,12 +84,13 @@ tar_media() {
 
 usage() {
 	local _rc="${1:-1}";
-	printf "usage: %s [-n] [-s] <addr> <port>\n" "${0##*/}" >&2;
+	printf "usage: %s [-n] [-s] <addr> <port> <code-pair> <port-pair>\n" "${0##*/}" >&2;
 	exit "${_rc}";
 };
 
 main() {
-	local	_addr="" _device="" _nflag=0 _opt="" _port="" _sflag=0;
+	local	_addr="" _code_pair="" _device="" _nflag=0 _opt=""	\
+		_port="" _port_pair="" _sflag=0;
 
 	while getopts hns _opt; do
 	case "${_opt}" in
@@ -100,10 +101,10 @@ main() {
 	esac; done;
 	shift $((${OPTIND}-1));
 
-	if [ "${#}" -ne 2 ]; then
-		printf "error: missing <addr> <port>\n" >&2; usage 2;
+	if [ "${#}" -ne 4 ]; then
+		printf "error: missing <addr> <port> <code-pair> <port-pair>\n" >&2; usage 2;
 	else
-		_addr="${1}"; _port="${2}";
+		_addr="${1}"; _port="${2}" _code_pair="${3}" _port_pair="${4}";
 	fi;
 
 	push_IFS "
@@ -112,6 +113,7 @@ main() {
 		_device="${_device#./}";
 		(cd "${_device}";
 		 trap 'pkill -f "adb .* fork-server "' ALRM EXIT HUP INT TERM USR1 USR2;
+		 adb pair "${_addr}:${_port_pair}" "${_code_pair}";
 		 adb connect "${_addr}:${_port}";
 		 adb root;
 		 if [ "${_sflag}" -eq 0 ]; then
