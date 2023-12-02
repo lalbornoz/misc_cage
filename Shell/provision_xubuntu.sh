@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# roarie's [X]ubuntu >=22.10 provisioning script
+# roarie's [X]ubuntu >=23.10 provisioning script
 #
 
 #
@@ -177,9 +177,6 @@ provision_080_users() {
 PROVISION_SOFTWARE_INSTALL_NVIDIA_VERSION="525";
 
 provision_110_software_install() {
-	rc add-apt-repository -y ppa:mozillateam/ppa || return "${?}";
-	rc add-apt-repository -y ppa:nicotine-team/stable || return "${?}";
-
 	rc apt update -y || return "${?}";
 	rc apt dist-upgrade -y || return "${?}";
 
@@ -196,9 +193,9 @@ provision_110_software_install() {
 		git irssi mutt ncat net-tools ngrep python3-pip rsync wget yt-dlp	\
 		gnupg2 neovim tmux sqlite3 zsh						\
 											\
-		codium									\
 		firefox nicotine systray-x thunderbird					\
-		haruna gimp kolourpaint 						\
+		haruna gimp kolourpaint yuki-iptv					\
+		kdevelop								\
 		keepassxc meteo-qt psensor redshift redshift-gtk xfce4-timer-plugin	\
 		libreoffice-calc libreoffice-writer neovim-qt				\
 		wine winetricks								\
