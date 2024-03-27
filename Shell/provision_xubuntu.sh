@@ -304,6 +304,8 @@ provision_190_software_finish() {
 
 # {{{ provision_210_services()
 provision_210_services() {
+	rc systemctl mask apt-news.service || return "${?}";
+
 	rc systemctl enable ssh || return "${?}";
 	rc systemctl enable iscsid || return "${?}";
 
