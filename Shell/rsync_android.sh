@@ -41,9 +41,9 @@ tar_app() {
 
 rsync_data() {
 	local _nflag="${1}" _path_dst="data" _path_src="/data/data";
-	if rc "${_nflag}" rsync -aiPv --blocking-io --delete "exec:/${_path_src}/" "${_path_dst}/";
+	if rc "${_nflag}" rsync -aiPv --blocking-io --delete --exclude="org.mozilla.firefox/cache" "exec:/${_path_src}/" "${_path_dst}/";
 	then
-		rsync -e "adb shell" --blocking-io -aiPv --delete "exec:/${_path_src}/" "${_path_dst}/";
+		rsync -e "adb shell" --blocking-io -aiPv --delete "exec:/${_path_src}/" --exclude="org.mozilla.firefox/cache" "${_path_dst}/";
 	fi;
 };
 
@@ -63,9 +63,9 @@ tar_data() {
 rsync_media() {
 	local _nflag="${1}" _path_dst="media" _path_src="/data/media/0";
 
-	if rc "${_nflag}" rsync -e "adb shell" -aiPv --blocking-io --delete "exec:/${_path_src}/" "${_path_dst}/";
+	if rc "${_nflag}" rsync -e "adb shell" -aiPv --blocking-io --delete --exclude="Android/data/com.reddit.frontpage/cache" "exec:/${_path_src}/" "${_path_dst}/";
 	then
-		rsync -e "adb shell" -aiPv --blocking-io --delete "exec:/${_path_src}/" "${_path_dst}/";
+		rsync -e "adb shell" -aiPv --blocking-io --delete --exclude="Android/data/com.reddit.frontpage/cache" "exec:/${_path_src}/" "${_path_dst}/";
 	fi;
 };
 
