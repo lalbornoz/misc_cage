@@ -4,21 +4,28 @@
 #
 
 # {{{ Global variables
+FILTER="";
 LOG_FNAME="provision.log";
 LOG_TMP_STDERR_FNAME="";
 NFLAG=0;
 YFLAG=0;
 # }}}
 # {{{ Defaults
+BOOT_DEVICE="";
+BOOT_EFI_DEVICE="";
 DEBOOTSTRAP_MIRROR="http://de.archive.ubuntu.com/ubuntu/"
-HOME_DEVICE="lucia-pc-home";
+HOME_DEVICE="";
 HOSTNAME="";
 LOCALE_GEN="en_GB.UTF-8 de_DE.UTF-8 es_CL.UTF-8 ar_MA.UTF-8";
-ROOT_DEVICE="/dev/sda";
-SWAP_DEVICE="lucia-pc-hibernate";
+ROOT_DEVICE="";
+ROOT_DISK_DEVICE="";
+SWAP_DEVICE="";
 TIMEZONE="/usr/share/zoneinfo/Europe/Berlin";
 USER_NORMAL="lucia";
 USER_TOOR="toor";
+VG_NAME="";
+
+REQUIRED_VARIABLES="BOOT_DEVICE BOOT_EFI_DEVICE HOME_DEVICE HOSTNAME ROOT_DEVICE ROOT_DISK_DEVICE SWAP_DEVICE VG_NAME";
 # }}}
 
 # {{{ provision_000_debootstrap()
@@ -59,68 +66,6 @@ provision_010_chroot() {
 
 # {{{ provision_110_essential_etc()
 provision_110_essential_etc() {
-	local	_boot_device="" _boot_efi_device=""		\
-		_choice="" _device="" _fdisk_line="" _fstype=""	\
-		_root_device="";
-		IFS="${IFS:- }" IFS0="${IFS:- }";
-
-	IFS="
-";	for _fdisk_line in $(rc -y		 		 \
-			printf "p\n"				|\
-			fdisk "${ROOT_DEVICE}" 2>/dev/null	|\
-			grep '^/dev'				|\
-			sed 's/  \+/ /g'			|\
-			cut -d" " -f1,6-);
-	do
-		IFS=" "; set -- ${_fdisk_line}; IFS="
-";		_device="${1}"; shift; _fstype="${*}";
-		case "${_fstype}" in
-		"EFI System")
-			_boot_efi_device="${_device}";
-			;;
-		"BIOS boot")
-			_boot_device="${_device}";
-			;;
-		"Linux filesystem")
-			if [ "${_boot_device:+1}" != 1 ]; then
-				_boot_device="${_device}";
-			else
-				_root_device="${_device}";
-			fi;
-		esac;
-	done;
-	IFS="${IFS0}";
-
-	if [ "${_boot_device:+1}" != 1 ]\
-	|| [ "${_boot_efi_device:+1}" != 1 ]\
-	|| [ "${_root_device:+1}" != 1 ];
-	then
-		provision_print "" "Error: failed to detect boot (${_boot_device}), boot EFI (${_boot_efi_device}), and/or root device (${_root_device}).";
-		if [ "${_boot_device:+1}" != 1 ]; then
-			printf "Enter boot device: ";
-			read _boot_device;
-		fi;
-		if [ "${_boot_efi_device:+1}" != 1 ]; then
-			printf "Enter boot EFI device: ";
-			read _boot_efi_device;
-		fi;
-		if [ "${_root_device:+1}" != 1 ]; then
-			printf "Enter root device: ";
-			read _root_device;
-		fi;
-	fi;
-
-	printf "Detected boot, boot EFI, and root devices:\n";
-	printf "	%s\n" "${_boot_device}";
-	printf "	%s\n" "${_boot_efi_device}";
-	printf "	%s\n" "${_root_device}";
-	printf "Is this correct? (y|N) ";
-	read _choice;
-	case "${_choice}" in
-	[yY])	;;
-	*)	return 1;
-	esac;
-
 	rc -e cat <<EOF \> /etc/fstab
 # /etc/fstab: static file system information.
 #
@@ -128,13 +73,13 @@ provision_110_essential_etc() {
 # device; this may be used with UUID= as a more robust way to name devices
 # that works even if disks are added and removed. See fstab(5).
 #
-# <file system>					<mount point>	<type>		<options>		<dump>	<pass>
+# <file system>		<mount point>	<type>		<options>		<dump>	<pass>
 
-${_root_device}					/		ext4		errors=remount-ro	0	1
-${SWAP_DEVICE}					none		swap		sw			0	0
-${_boot_device}					/boot		ext4   		defaults	 	0	2
-${_boot_efi_device}				/boot/efi	vfat		umask=0077		0	1
-${HOME_DEVICE}					/home		ext4		defaults		0	2}
+${ROOT_DISK_DEVICE}	/		ext4		errors=remount-ro	0	1
+${SWAP_DEVICE}		none		swap		sw			0	0
+${BOOT_DEVICE}		/boot		ext4   		defaults	 	0	2
+${BOOT_EFI_DEVICE}	/boot/efi	vfat		umask=0077		0	1
+${HOME_DEVICE}		/home		ext4		defaults		0	2}
 
 # vim:tw=0
 EOF
@@ -202,11 +147,6 @@ provision_120_conf_local() {
 };
 # }}}
 # {{{ provision_140_hibernate()
-# {{{ provision_140_hibernate() variables
-PROVISION_HIBERNATE_ROOT_NAME="root";
-PROVISION_HIBERNATE_SWAP_NAME="swap_1";
-PROVISION_HIBERNATE_VG_NAME="vgkubuntu";
-# }}}
 provision_140_hibernate() {
 	local _swap_delta_mb="" _swap_size_cur_mb="" _swap_size_new_mb="";
 
@@ -215,7 +155,7 @@ provision_140_hibernate() {
 
 	_swap_size_cur_mb="$(				\
 		printf "%s" "${_swap_size_cur_mb}"	|\
-		awk '/'"${PROVISION_HIBERNATE_SWAP_NAME}"'/ {
+		awk '/'"${SWAP_DEVICE}"'/ {
 			sub(/,/, ".", $NF);
 		       	sub(/m$/, "", $NF);
 			sub(/\..*$/, "", $NF);
@@ -238,12 +178,12 @@ provision_140_hibernate() {
 	_swap_delta_mb="$((${_swap_size_new_mb:-0}-${_swap_size_cur_mb:-0}))";
 
 	if [ "${_swap_delta_mb}" -gt 0 ]; then
-		rc swapoff "/dev/${PROVISION_HIBERNATE_VG_NAME}/${PROVISION_HIBERNATE_SWAP_NAME}" || return "${?}";
+		rc swapoff "/dev/${VG_NAME}/${SWAP_DEVICE}" || return "${?}";
 
-		rc lvresize --units m -r -L "-${_swap_delta_mb}" "${PROVISION_HIBERNATE_ROOT_NAME}" || return "${?}";
-		rc lvresize -r -l +100%FREE "${PROVISION_HIBERNATE_SWAP_NAME}" || return "${?}";
+		rc lvresize --units m -r -L "-${_swap_delta_mb}" "${ROOT_DEVICE}" || return "${?}";
+		rc lvresize -r -l +100%FREE "${SWAP_DEVICE}" || return "${?}";
 
-		rc mkswap -f "/dev/${PROVISION_HIBERNATE_VG_NAME}/${PROVISION_HIBERNATE_SWAP_NAME}" || return "${?}";
+		rc mkswap -f "/dev/${VG_NAME}/${SWAP_DEVICE}" || return "${?}";
 
 		rc mkinitramfs -u || return "${?}";
 		rc update-grub || return "${?}";
@@ -593,7 +533,7 @@ provision_384_fonts_segoe() {
 };
 # }}}
 
-# {{{ provision_exec($_pe_title, $_pe_name, $_pe_name_pri)
+# {{{ provision_exec($_title, $_name, $_name_pri)
 provision_exec() {
 	local	_pe_title="${1}" _pe_name="${2}" _pe_name_pe_pri="${3}"	\
 		_pe_legend="" _pe_rc=0;
@@ -610,7 +550,7 @@ provision_exec() {
 	return "${_pe_rc}";
 };
 # }}}
-# {{{ provision_exec_fail($_pef_title, $_pef_name, $_pef_name_pri, $_pef_rc)
+# {{{ provision_exec_fail($_title, $_name, $_name_pri, $_rc)
 provision_exec_fail() {
 	local	_pef_title="${1}" _pef_name="${2}"	\
 		_pef_name_pef_pri="${3}" _pef_rc="${4}"	\
@@ -653,7 +593,7 @@ provision_exit() {
 	done;
 };
 # }}}
-# {{{ provision_if($_pi_title, $_pi_name)
+# {{{ provision_if($_title, $_name)
 provision_if() {
 	local	_pi_title="${1}" _pi_name="${2}"	\
 		_pi_execfl=0 _pi_filter_cmdline=""	\
@@ -664,10 +604,10 @@ provision_if() {
 	_pi_name_pri="${_pi_name#provision_}";
 	_pi_name_pri="${_pi_name_pri%%_*}";
 
-	if [ "${#}" -eq 0 ]; then
+	if [ "${FILTER:+1}" != 1 ]; then
 		_pi_execfl=1;
 	else
-		for _pi_filter_cmdline in "${@}"; do
+		for _pi_filter_cmdline in ${FILTER}; do
 			if [ "${_pi_name_base#${_pi_filter_cmdline}}" != "${_pi_name_base}" ]; then
 				_pi_execfl=1; break;
 			fi;
@@ -682,56 +622,106 @@ provision_if() {
 	fi;
 };
 # }}}
-# {{{ provision_init($_pi2_rafter_chroot_flag)
+# {{{ provision_print($_name, $_title)
+provision_print() {
+	local	_pp_name="${1}" _pp_title="${2}"	\
+		_pp_buf="";
+
+	_pp_buf="$(printf					\
+		"[35m>>> [1m%s[4m[36m%s[0m"	\
+		"${_pp_name:+${_pp_name}[22m }" "${_pp_title}")";
+	if [ "${LOG_FNAME:+1}" = 1 ]; then
+		printf "%s\n" "${_pp_buf}" | tee -a "${LOG_FNAME}";
+	else
+		printf "%s\n" "${_pp_buf}";
+	fi;
+};
+# }}}
+
+# {{{ provision_init($_rafter_chroot_flag, $_rfilter, $_rshift_count)
 provision_init() {
-	local	_pi2_rafter_chroot_flag="${1#\$}"	\
-		_pi2_rshift_count="${2#\$}"		\
-		_pi2_hflag=0 _pi2_opt=""		\
-		_pi2_shift_count=0;
-		OPTARG="" OPTIND=0;
-	shift 2;
+	local _pi2_vname="" _pi2_vnames_empty="";
+
+	for _pi2_vname in ${REQUIRED_VARIABLES}; do
+		if eval [ \"\${${_pi2_vname}:+1}\" != 1 ]; then
+			_pi2_vnames_empty="${_pi2_vnames_empty:+${_pi2_vnames_empty} }${_pi2_vname}";
+		fi;
+	done;
+
+	if [ "${_pi2_vnames_empty:+1}" = 1 ]; then
+		printf "Error: required variables unset or empty:\n" >&2;
+		for _pi2_vname in ${_pi2_vnames_empty}; do
+			printf "	%s\n" "${_pi2_vname}" >&2;
+		done;
+		printf "\n" >&2;
+		usage;
+		return 1;
+	elif ! [ -x "./conf.local/" ]; then
+		printf "Error: ./conf.local/ missing.\n" >&2;
+		usage;
+		return 1;
+	fi;
+
+	if [ "${LOG_FNAME:+1}" = 1 ]; then
+		provision_init_log;
+	fi;
+
+	return 0;
+};
+# }}}
+# {{{ provision_init_args($_rafter_chroot_flag)
+provision_init_args() {
+	local	_pia_rafter_chroot_flag="${1#\$}"			\
+		_pia_after_chroot_flag=0 _pia_filter="" _pia_hflag=0	\
+		_pia_opt="" _pia_shift_count=0				\
+		IFS IFS0="${IFS:- }" OPTARG="" OPTIND=0;
+	shift 1;
 
 	while [ "${#}" -gt 0 ]; do
 		case "${1}" in
 		---after-chroot)
-			eval ${_pi2_rafter_chroot_flag}=1;
-			: $((_pi2_shift_count+=1)); shift 1;
+			_pia_after_chroot_flag=1;
+			: $((_pia_shift_count+=1)); shift 1;
 			;;
 
-		*)	OPTIND=0;
-			if getopts chl:Lny _pi2_opt; then
-				case "${_pi2_opt}" in
+		*=*)
+			eval ${1%=*}=\${1#*=};
+			: $((_pia_shift_count+=1)); shift 1;
+			;;
+
+		-*)	OPTIND=0;
+			if getopts cf:hl:Lny _pia_opt; then
+				case "${_pia_opt}" in
 				c)	NFLAG=2; ;;
-				h)	_pi2_hflag=1; break; ;;
+				f)	llift \$FILTER "${OPTARG}" "," " "; ;;
+				h)	_pia_hflag=1; break; ;;
 				l)	LOG_FNAME="${OPTARG}"; ;;
 				L)	LOG_FNAME=""; ;;
 				n)	NFLAG=1; ;;
 				y)	YFLAG=1; ;;
-				*)	_pi2_hflag=1; break; ;;
+				*)	_pia_hflag=1; break; ;;
 				esac;
 			else
 				break;
 			fi;
 			if [ "${OPTIND}" -gt 0 ]; then
-				_pi2_shift_count=$((${_pi2_shift_count}+(${OPTIND}-1)));
+				_pia_shift_count=$((${_pia_shift_count}+(${OPTIND}-1)));
 				shift $((${OPTIND}-1));
 			fi;
+			;;
+
+		*)
+			HOSTNAME="${1}";
+			: $((_pia_shift_count+=1)); shift 1;
+			;;
 		esac;
 	done;
 
-	if [ "${_pi2_hflag}" -eq 1 ]\
-	|| [ "${#}" -lt 1 ];
-	then
+	if [ "${_pia_hflag}" -eq 1 ]; then
 		usage;
 		return 1;
 	else
-		HOSTNAME="${1}";
-		: $((_pi2_shift_count+=1)); shift 1;
-		eval ${_pi2_rshift_count}=\${_pi2_shift_count};
-
-		if [ "${LOG_FNAME:+1}" = 1 ]; then
-			provision_init_log;
-		fi;
+		eval ${_pia_rafter_chroot_flag}=\${_pia_after_chroot_flag};
 		return 0;
 	fi;
 };
@@ -755,22 +745,27 @@ provision_init_log() {
 	return 0;
 };
 # }}}
-# {{{ provision_print($_pp_name, $_pp_title)
-provision_print() {
-	local	_pp_name="${1}" _pp_title="${2}"	\
-		_pp_buf="";
-
-	_pp_buf="$(printf					\
-		"[35m>>> [1m%s[4m[36m%s[0m"	\
-		"${_pp_name:+${_pp_name}[22m }" "${_pp_title}")";
-	if [ "${LOG_FNAME:+1}" = 1 ]; then
-		printf "%s\n" "${_pp_buf}" | tee -a "${LOG_FNAME}";
-	else
-		printf "%s\n" "${_pp_buf}";
-	fi;
+# {{{ usage()
+usage() {
+	printf "usage: %s [-c] [-f filter[ ..]] [-l fname] [-L] [-n] [-y] hostname [VAR=value [..]]\n" "${0##*/}" >&2;
+	printf "       -c..............: confirm before running each command\n" >&2;
+	printf "       -f filter[ ..]..: filter provision functions w/ filter\n" >&2;
+	printf "       -l fname........: set log filename\n" >&2;
+	printf "       -L..............: do not create log file\n" >&2;
+	printf "       -n..............: dry run\n" >&2;
+	printf "       -y..............: always continue execution on error\n" >&2;
 };
 # }}}
 
+llift() {
+	local	_ll_rout="${1#\$}" _ll_in="${2}"	\
+		_ll_sep_in="${3}" _ll_sep_out="${4}"	\
+		IFS="${3}" IFS0="${IFS:- }"		\
+
+	eval set -- \${_ll_in}; IFS="${_ll_sep_out}";
+	eval ${_ll_rout}=\"\${*}\";
+	return 0;
+}
 # {{{ rc([-y], [-e], $_rc_cmd[, ...])
 rc() {
 	if [ "${1#-y}" != "${1}" ]; then local _rc_yflag=1; shift; else local _rc_yflag=0; fi;
@@ -837,7 +832,7 @@ rc() {
 	esac;
 };
 # }}}
-# {{{ rc_exec($_rce_cmd, $_rce_eflag, $_rce_log_fname, $_rce_log_tmp_stderr_fname)
+# {{{ rc_exec($_cmd, $_eflag, $_log_fname, $_log_tmp_stderr_fname)
 rc_exec() {
 	local	_rce_cmd="${1}" _rce_eflag="${2}"			\
 		_rce_log_fname="${3}" _rce_log_tmp_stderr_fname="${4}"	\
@@ -892,52 +887,44 @@ rc_exec() {
 };
 # }}}
 
-# {{{ usage()
-usage() {
-	printf "usage: %s [-c] [-l fname] [-L] [-n] [-y] hostname [filter[..]]\n" "${0##*/}" >&2;
-	printf "       -c........: confirm before running each command\n" >&2;
-	printf "       -l fname..: set log filename\n" >&2;
-	printf "       -L........: do not create log file\n" >&2;
-	printf "       -n........: dry run\n" >&2;
-	printf "       -y........: always continue execution on error\n" >&2;
-	printf "       WARNING: Use with caution, may cause mayhem.\n" >&2;
-};
-# }}}
-
-
 provision() {
-	local _p_after_chroot_flag=0 _p_shift_count=0;
-	provision_init \$_p_after_chroot_flag \$_p_shift_count "${@}" || return 1;
-	shift "${_p_shift_count}";
-	trap provision_exit ALRM HUP EXIT INT QUIT TERM USR1 USR2;
+	local _p_after_chroot_flag=0;
+
+	if ! provision_init_args \$_p_after_chroot_flag "${@}"	\
+	|| ! provision_init;
+	then
+		return 1;
+	else
+		trap provision_exit ALRM HUP EXIT INT QUIT TERM USR1 USR2;
+	fi;
 
 	if [ "${_p_after_chroot_flag}" -eq 0 ]; then
-		provision_if "Debootstrap"		provision_000_debootstrap "${@}";
-		provision_if "Mount and chroot"		provision_010_chroot "${@}";
+		provision_if "Debootstrap"		provision_000_debootstrap;
+		provision_if "Mount and chroot"		provision_010_chroot;
 
 		return 0;
 	fi;
 
-	provision_if "Essential /etc files"		provision_110_essential_etc "${@}";
-	provision_if "Install /conf.local"		provision_120_conf_local "${@}";
-	provision_if "Hibernation support"		provision_140_hibernate "${@}";
-	provision_if "Disable Bluetooth & WLAN"		provision_170_disable_bluetooth_wlan "${@}";
-	provision_if "Disable snap"			provision_175_disable_snap "${@}";
-	provision_if "Users & passwords"		provision_180_users "${@}";
+	provision_if "Essential /etc files"		provision_110_essential_etc;
+	provision_if "Install /conf.local"		provision_120_conf_local;
+	provision_if "Hibernation support"		provision_140_hibernate;
+	provision_if "Disable Bluetooth & WLAN"		provision_170_disable_bluetooth_wlan;
+	provision_if "Disable snap"			provision_175_disable_snap;
+	provision_if "Users & passwords"		provision_180_users;
 
-	provision_if "Install software"			provision_210_software_install "${@}";
-	provision_if "Remove software"			provision_230_software_remove "${@}";
-	provision_if "Install Tor Browser"		provision_250_software_torbrowser "${@}";
-	provision_if "Install Wezterm"			provision_255_software_wezterm "${@}";
-	provision_if "Configure software for user"	provision_270_software_configure "${@}";
-	provision_if "Finish software"			provision_290_software_finish "${@}";
+	provision_if "Install software"			provision_210_software_install;
+	provision_if "Remove software"			provision_230_software_remove;
+	provision_if "Install Tor Browser"		provision_250_software_torbrowser;
+	provision_if "Install Wezterm"			provision_255_software_wezterm;
+	provision_if "Configure software for user"	provision_270_software_configure;
+	provision_if "Finish software"			provision_290_software_finish;
 
-	provision_if "Services"				provision_310_services "${@}";
-	provision_if "Add APT source links"		provision_350_apt_src "${@}";
-	provision_if "Configure fonts: core"		provision_381_fonts_core "${@}";
-	provision_if "Configure fonts: ClearType"	provision_382_fonts_cleartype "${@}";
-	provision_if "Configure fonts: Tahoma"		provision_383_fonts_tahoma "${@}";
-	provision_if "Configure fonts: Segoe"		provision_384_fonts_segoe "${@}";
+	provision_if "Services"				provision_310_services;
+	provision_if "Add APT source links"		provision_350_apt_src;
+	provision_if "Configure fonts: core"		provision_381_fonts_core;
+	provision_if "Configure fonts: ClearType"	provision_382_fonts_cleartype;
+	provision_if "Configure fonts: Tahoma"		provision_383_fonts_tahoma;
+	provision_if "Configure fonts: Segoe"		provision_384_fonts_segoe;
 
 	return 0;
 };
