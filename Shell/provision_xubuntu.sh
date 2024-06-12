@@ -260,13 +260,13 @@ provision_210_software_install() {
 		dos2unix fd-find fzf gcp pandoc ripgrep					\
 		ffmpeg									\
 		git irssi mutt ncat net-tools ngrep python3-pip rsync wget yt-dlp	\
-		gnupg2 neovim tmux sqlite3 zsh						\
+		gnupg2 tmux sqlite3 zsh							\
 											\
 		firefox nicotine systray-x thunderbird					\
 		haruna gimp kolourpaint yuki-iptv					\
 		kdevelop								\
 		keepassxc meteo-qt psensor redshift redshift-gtk xfce4-timer-plugin	\
-		libreoffice-calc libreoffice-writer neovim-qt				\
+		libreoffice-calc libreoffice-writer 					\
 		wine winetricks								\
 											\
 		|| return "${?}";
@@ -290,6 +290,34 @@ provision_210_software_install() {
 	fi;
 
 	return 0;
+};
+# }}}
+# {{{ provision_220_software_install_brew()
+provision_220_software_install_brew() {
+	local _path_old="${PATH}" _rc=0;
+
+	rc												\
+		/bin/bash -c										\
+		"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"	\
+		|| return "${?}";
+
+	export HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew";
+	export HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar";
+	export HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew";
+	export PATH="/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin${PATH+:$PATH}";
+
+	if ! HOMEBREW_NO_AUTO_UPDATE=1 rc brew install lazygit\
+	|| ! HOMEBREW_NO_AUTO_UPDATE=1 rc brew install neovim\
+	|| ! HOMEBREW_NO_AUTO_UPDATE=1 rc brew install neovide\
+	|| ! HOMEBREW_NO_AUTO_UPDATE=1 rc brew install tmux;
+	then
+		_rc=1;
+	fi;
+
+	unset HOMEBREW_PREFIX HOMEBREW_CELLAR HOMEBREW_REPOSITORY;
+	export PATH="${_path_old}";
+
+	return "${_rc}";
 };
 # }}}
 # {{{ provision_230_software_remove()
@@ -913,6 +941,7 @@ provision() {
 	provision_if "Users & passwords"		provision_180_users;
 
 	provision_if "Install software"			provision_210_software_install;
+	provision_if "Install software (Brew)"		provision_220_software_install_brew;
 	provision_if "Remove software"			provision_230_software_remove;
 	provision_if "Install Tor Browser"		provision_250_software_torbrowser;
 	provision_if "Install Wezterm"			provision_255_software_wezterm;
