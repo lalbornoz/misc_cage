@@ -1,7 +1,4 @@
 #!/bin/sh
-# Refer to <https://github.com/lalbornoz/misc_cage/tree/master/Shell/update-iptables.example>
-# concerning how to use this script.
-#
 
 # {{{ Globals
 RTL_LOG_LVL=0;
@@ -40,7 +37,7 @@ rtl_check_prereqs() {
 };
 
 rtl_flock_acquire() {
-	local _fd="${1}" _conflict_exit_code="${2:-622}" _wait="${3:-3600}"
+	local _fd="${1}" _conflict_exit_code="${2:-22}" _wait="${3:-3600}"
 	while true; do
 		if flock -E "${_conflict_exit_code}" -w "${_wait}" "${_fd}"; then
 			break;
@@ -68,6 +65,20 @@ rtl_iptables_save() {
 	6)	ip6tables-save > "${_fname}"; ;;
 	*)	return 1; ;;
 	esac;
+};
+
+rtl_ipset_flush() {
+	ipset flush;
+};
+
+rtl_ipset_restore() {
+	local _fname="${1}";
+	ipset restore -exist < "${_fname}";
+};
+
+rtl_ipset_save() {
+	local _fname="${1}";
+	ipset save > "${_fname}";
 };
 
 rtl_lconcat() {
@@ -291,12 +302,53 @@ update_iptables_testapply() {
 	fi; rm -f "${RTL_MKTEMP_FNAME}" 2>/dev/null; return "${_rc}";
 };
 
+update_ipset_apply() {
+	local _nflag="${1}" _set_fname_old="${2}" _set_fname_target="${3}" _rc=0; _status=""
+	rtl_log_msg success "Applying IP set...";
+	if ! rtl_rc "${_nflag}" rtl_ipset_flush; then
+		_rc=1; _status="Error: failed to flush IP sets.";
+	elif ! rtl_rc "${_nflag}" rtl_ipset_restore "${_set_fname_target}"; then
+		_rc=1; _status="Error: failed to apply IP set from file \`${_set_fname_target}'.";
+	else
+		rtl_log_msg info_end "Applied IP set.";
+	fi;
+	return "${_rc}";
+};
+
+update_ipset_testapply() {
+	local	_nflag="${1}" _set_fname_old="${2}" _set_fname_target="${3}"	\
+		_rc=0 _rc_child=0 RTL_MKTEMP_FNAME=""; _status=""
+	if ! rtl_mktemp; then
+		_rc=1; _status="Error: failed to create temporary file.";
+	elif ! rtl_rc "${_nflag}" rtl_ipset_save "${RTL_MKTEMP_FNAME}"; then
+		_rc=1; _status="Error: failed to save original IP set to file \`${RTL_MKTEMP_FNAME}'.";
+	elif ! rtl_rc "${_nflag}" rtl_ipset_flush; then
+		_rc=1; _status="Error: failed to flush IP sets.";
+	elif ! rtl_rc "${_nflag}" rtl_ipset_restore "${_set_fname_target}"; then
+		_rc=1; _status="Error: failed to apply IP set from file \`${_set_fname_target}'.";
+	else	rtl_log_msg info "Restoring original IP set in five (5) seconds.";
+		rtl_log_msg info "Send an interrupt w/ <Control> C in order to keep and commit the new ruleset.";
+		UPDATE_IPTABLESP_INHIBIT_AST=1; (trap "exit 10" INT; sleep 5; exit 0); _rc_child="${?}"; UPDATE_IPTABLESP_INHIBIT_AST=0;
+		case "${_rc_child}" in
+		10)	rtl_log_msg info "Committing new ruleset.";
+			;;
+		*)	rtl_log_msg info "Restoring original rule set...";
+			if ! rtl_rc "${_nflag}" rtl_ipset_restore "${RTL_MKTEMP_FNAME}"; then
+				rtl_log_msg warning "Warning: failed to restore original IP set from file \`${RTL_MKTEMP_FNAME}'.";
+			else
+				rtl_log_msg info_end "Restored original IP set.";
+			fi;
+			;;
+		esac;
+	fi; rm -f "${RTL_MKTEMP_FNAME}" 2>/dev/null; return "${_rc}";
+};
+
 update_iptables_usage() {
 	printf "usage: %s [-a|-g|-t] [-c] [-h] [-n] [-v]\n" "${0}" >&2;
-	printf "       -a ...: regenerate and apply ip{,6}tables(8) rule sets\n" >&2;
+	printf "       -a ...: regenerate and apply ip{,6}tables(8) rule sets and ipset(8)\n" >&2;
 	printf "       -g ...: regenerate ip{,6}tables(8) rule sets\n" >&2;
-	printf "       -t ...: regenerate and test new ip{,6}tables(8) w/ delayed prompt to commit\n" >&2;
-	printf "       -c ...: ask for confirmation before processing new rule set\n" >&2;
+	printf "       -t ...: regenerate and test new ip{,6}tables(8) and ipset(8) w/ delayed prompt to commit\n" >&2;
+	printf "       -c ...: ask for confirmation before processing new rule set and ipset(8)\n" >&2;
 	printf "       -h ...: show this screen\n" >&2;
 	printf "       -n ...: dry run (implies -v)\n" >&2;
 	printf "       -v ...: increase verbosity\n" >&2;
@@ -308,7 +360,8 @@ update_iptables_usage() {
 #
 update_iptables() {
 	local	_af="" _aflag=0 _cflag=0 _choice=0 _gflag=0 _nflag=0 _opt="" _rc=0\
-		_set_fname="" _status="" _tflag=0 RTL_MKTEMP_FNAME=""; UPDATE_IPTABLES_SET_FNAME="";
+		_set_fname="" _set_fname_old="" _status="" _tflag=0\
+		RTL_MKTEMP_FNAME=""; UPDATE_IPTABLES_SET_FNAME="";
 	while getopts acghntv _opt; do
 	case "${_opt}" in
 	a)	_aflag=1; ;;
@@ -358,6 +411,33 @@ update_iptables() {
 					fi;
 				else
 					rm -f "${_set_fname}" 2>/dev/null;
+				fi;
+			fi;
+
+			if ! rtl_mktemp; then
+				rtl_log_msg fatalexit "Error: failed to create temporary file.";
+			else	_set_fname_old="${RTL_MKTEMP_FNAME}"; _set_fname_target="/etc/iptables/ipsets";
+				rtl_ipset_save "${_set_fname_old}";
+				if [ "${_cflag:-0}" -eq 1 ]\
+				&& ! diff -u "${_set_fname_old}" "${_set_fname_target}"; then
+					rtl_prompt "Commit to \`%s'" "${_set_fname_target}"; _choice="${?}";
+				else
+					_choice=1;
+				fi;
+				if [ "${_choice:-0}" -eq 1 ]; then
+					if [ "${_aflag:-0}" -eq 1 ]; then
+						update_ipset_apply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
+					elif [ "${_tflag:-0}" -eq 1 ]; then
+						update_ipset_testapply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
+					fi;
+					if [ "${_nflag:-0}" -eq 1 ]; then
+						rm -f "${_set_fname_old}" 2>/dev/null;
+					fi;
+					if [ "${_rc:-0}" -ne 0 ]; then
+						rtl_log_msg fatalexit "${_status}";
+					fi;
+				else
+					rm -f "${_set_fname_old}" 2>/dev/null;
 				fi;
 			fi;
 		done;
