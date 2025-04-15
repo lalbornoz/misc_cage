@@ -386,6 +386,33 @@ update_iptables() {
 		for _af in ${UPDATE_IPTABLES_AF_LIST}; do
 			if ! rtl_mktemp; then
 				rtl_log_msg fatalexit "Error: failed to create temporary file.";
+			else	_set_fname_old="${RTL_MKTEMP_FNAME}"; _set_fname_target="/etc/iptables/ipsets";
+				rtl_ipset_save "${_set_fname_old}";
+				if [ "${_cflag:-0}" -eq 1 ]\
+				&& ! diff -u "${_set_fname_old}" "${_set_fname_target}"; then
+					rtl_prompt "Commit to \`%s'" "${_set_fname_target}"; _choice="${?}";
+				else
+					_choice=1;
+				fi;
+				if [ "${_choice:-0}" -eq 1 ]; then
+					if [ "${_aflag:-0}" -eq 1 ]; then
+						update_ipset_apply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
+					elif [ "${_tflag:-0}" -eq 1 ]; then
+						update_ipset_testapply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
+					fi;
+					if [ "${_nflag:-0}" -eq 1 ]; then
+						rm -f "${_set_fname_old}" 2>/dev/null;
+					fi;
+					if [ "${_rc:-0}" -ne 0 ]; then
+						rtl_log_msg fatalexit "${_status}";
+					fi;
+				else
+					rm -f "${_set_fname_old}" 2>/dev/null;
+				fi;
+			fi;
+
+			if ! rtl_mktemp; then
+				rtl_log_msg fatalexit "Error: failed to create temporary file.";
 			elif ! update_iptables_regenerate "${_af}" "${RTL_MKTEMP_FNAME}"; then
 				rtl_log_msg fatalexit "%s" "${_status}";
 			else	_set_fname="${RTL_MKTEMP_FNAME}"; _set_fname_target="/etc/iptables/rules.v${_af}";
@@ -411,33 +438,6 @@ update_iptables() {
 					fi;
 				else
 					rm -f "${_set_fname}" 2>/dev/null;
-				fi;
-			fi;
-
-			if ! rtl_mktemp; then
-				rtl_log_msg fatalexit "Error: failed to create temporary file.";
-			else	_set_fname_old="${RTL_MKTEMP_FNAME}"; _set_fname_target="/etc/iptables/ipsets";
-				rtl_ipset_save "${_set_fname_old}";
-				if [ "${_cflag:-0}" -eq 1 ]\
-				&& ! diff -u "${_set_fname_old}" "${_set_fname_target}"; then
-					rtl_prompt "Commit to \`%s'" "${_set_fname_target}"; _choice="${?}";
-				else
-					_choice=1;
-				fi;
-				if [ "${_choice:-0}" -eq 1 ]; then
-					if [ "${_aflag:-0}" -eq 1 ]; then
-						update_ipset_apply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
-					elif [ "${_tflag:-0}" -eq 1 ]; then
-						update_ipset_testapply "${_nflag}" "${_set_fname_old}" "${_set_fname_target}"; _rc="${?}";
-					fi;
-					if [ "${_nflag:-0}" -eq 1 ]; then
-						rm -f "${_set_fname_old}" 2>/dev/null;
-					fi;
-					if [ "${_rc:-0}" -ne 0 ]; then
-						rtl_log_msg fatalexit "${_status}";
-					fi;
-				else
-					rm -f "${_set_fname_old}" 2>/dev/null;
 				fi;
 			fi;
 		done;
