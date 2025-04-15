@@ -1,5 +1,7 @@
 #!/bin/sh
 
+CGROUP_PREFIX="/sys/fs/cgroup";
+
 # {{{ Defaults (from <https://www.kernel.org/doc/Documentation/cgroup-v2.txt>)
 #
 # A read-write two value file which exists on non-root cgroups.
@@ -49,13 +51,19 @@
 # }}}
 # {{{ RTL functions
 rtl_cgroup_create_subdir() {
-	local _vflag="${1}" _cgroup="${2}";
+	local _vflag="${1}" _cgroup="${2}" _mode="${3}" _owner="${4}";
 	if [ "${_vflag:-0}" -eq 1 ]; then
-		rtl_log_verbose "Creating /sys/fs/cgroup/${_cgroup}.";
+		rtl_log_verbose "Creating ${CGROUP_PREFIX}/${_cgroup}.";
 	fi;
-	if ! [ -d "/sys/fs/cgroup/${_cgroup}" ]\
-	&& ! mkdir "/sys/fs/cgroup/${_cgroup}" 2>/dev/null; then
-		rtl_log_error "failed to create /sys/fs/cgroup/${_cgroup}."; return 1;
+	if ! [ -d "${CGROUP_PREFIX}/${_cgroup}" ]\
+	&& ! mkdir "${CGROUP_PREFIX}/${_cgroup}"; then
+		rtl_log_error "failed to create ${CGROUP_PREFIX}/${_cgroup}."; return 1;
+	elif ! chmod "${_mode}" "${CGROUP_PREFIX}/${_cgroup}"; then
+		rtl_log_error "failed to chmod ${CGROUP_PREFIX}/${_cgroup} to ${_mode}."; return 1;
+	elif ! chown "${_owner}" "${CGROUP_PREFIX}/${_cgroup}"; then
+		rtl_log_error "failed to chown ${CGROUP_PREFIX}/${_cgroup} to ${_owner}."; return 1;
+	elif ! chown "${_owner}" "${CGROUP_PREFIX}/${_cgroup}/cgroup.procs"; then
+		rtl_log_error "failed to chown ${CGROUP_PREFIX}/${_cgroup}/cgroup.procs to ${_owner}."; return 1;
 	else
 		return 0;
 	fi;
@@ -64,10 +72,10 @@ rtl_cgroup_create_subdir() {
 rtl_cgroup_write_file() {
 	local _vflag="${1}" _cgroup="${2}" _fname="${3}" _vname="${4}";
 	if [ "${_vflag:-0}" -eq 1 ]; then
-		rtl_log_verbose "Writing \`%s' to /sys/fs/cgroup/${_cgroup}/${_fname}." "${_vname}";
+		rtl_log_verbose "Writing \`%s' to ${CGROUP_PREFIX}/${_cgroup}/${_fname}." "${_vname}";
 	fi;
-	if ! printf "${_vname}\n" 2>/dev/null >| "/sys/fs/cgroup/${_cgroup}/${_fname}"; then
-		rtl_log_warning "failed to write \`%s' to /sys/fs/cgroup/${_cgroup}/${_fname}." "${_vname}"; return 1;
+	if ! printf "${_vname}\n" >| "${CGROUP_PREFIX}/${_cgroup}/${_fname}"; then
+		rtl_log_warning "failed to write \`%s' to ${CGROUP_PREFIX}/${_cgroup}/${_fname}." "${_vname}"; return 1;
 	else
 		return 0;
 	fi;
@@ -75,13 +83,13 @@ rtl_cgroup_write_file() {
 
 rtl_get_users() {
 	local _gname="${1}" _group_entry="" _group_id=0 _users="" _users_passwd="";
-	if ! _group_entry="$(getent group "${_gname}" 2>/dev/null)"; then
+	if ! _group_entry="$(getent group "${_gname}")"; then
 		rtl_log_error "invalid or unknown group \`%s'." "${_gname}"; return 1;
-	elif ! _group_id="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $3}' 2>/dev/null)"; then
+	elif ! _group_id="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $3}')"; then
 		rtl_log_error "failed to obtain GID from group \`%s'." "${_gname}"; return 2;
-	elif ! _users="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $4}' | sed 's/,/\n/g' 2>/dev/null)"; then
+	elif ! _users="$(printf "%s\n" "${_group_entry}" | awk -F: '{print $4}' | sed 's/,/\n/g')"; then
 		rtl_log_error "failed to obtain secondary group users from group \`%s'." "${_gname}"; return 3;
-	elif ! _users_passwd="$(awk -F: '$4 == '"${_group_id}"' {print $1}' /etc/passwd | paste -s -d" " 2>/dev/null)"; then
+	elif ! _users_passwd="$(awk -F: '$4 == '"${_group_id}"' {print $1}' /etc/passwd | paste -s -d" ")"; then
 		rtl_log_error "failed to obtain primary group users from group \`%s'." "${_gname}"; return 4;
 	else	_users="$(rtl_uniq $(rtl_lconcat "${_users}" "${_users_passwd}"))";
 		echo "${_users}"; return 0;
@@ -152,10 +160,10 @@ rtl_toupper() {
 	x*)     _s_new="${_s_new:+${_s_new}}X"; _s="${_s#x}"; ;;
 	y*)     _s_new="${_s_new:+${_s_new}}Y"; _s="${_s#y}"; ;;
 	z*)     _s_new="${_s_new:+${_s_new}}Z"; _s="${_s#z}"; ;;
-	[^abcdefghijklmnopqrstuvwxyz]*)
+	[!abcdefghijklmnopqrstuvwxyz]*)
 		_s_new="${_s_new:+${_s_new}}${_s%%[abcdefghijklmnopqrstuvwxyz]*}";
-		while [ "${_s#[^abcdefghijklmnopqrstuvwxyz]}" != "${_s}" ]; do
-			_s="${_s#[^abcdefghijklmnopqrstuvwxyz]}";
+		while [ "${_s#[!abcdefghijklmnopqrstuvwxyz]}" != "${_s}" ]; do
+			_s="${_s#[!abcdefghijklmnopqrstuvwxyz]}";
 		done; ;;
 	esac; done;
 	printf "%s" "${_s_new}";
@@ -199,7 +207,7 @@ cgconfig() {
 			rtl_log_error "failed to source \`/etc/default/cgconfig'."; exit 2;
 		fi;
 	fi;
-	if ! rtl_cgroup_create_subdir "${_vflag}" "users"; then
+	if ! rtl_cgroup_create_subdir "${_vflag}" "users" 0755 "root"; then
 		exit 3;
 	elif ! rtl_cgroup_write_file "${_vflag:-0}" "" "cgroup.subtree_control" "+cpu +memory +pids"; then
 		exit 4;
@@ -210,7 +218,7 @@ cgconfig() {
 	elif ! _unames="$(rtl_get_users "${CGROUP_USERS_GROUP}")"; then
 		exit 7;
 	else	for _uname in ${_unames}; do
-			if rtl_cgroup_create_subdir "${_vflag}" "users/${_uname}"; then
+			if rtl_cgroup_create_subdir "${_vflag}" "users/${_uname}" 0750 "${_uname}"; then
 				if _vval="$(cgconfigp_get_var "${_uname}" "CPU_MAX")"; then
 					rtl_cgroup_write_file "${_vflag:-0}" "users/${_uname}" "cpu.max" "${_vval}";
 				fi;
