@@ -92,7 +92,14 @@ update_host() {
 	||   ! mkfifo "${_rc_fifo_fname}"; then
 		printf_rc "" 1 " [failed to (re)create FIFO \`%s'.]\n" "${_rc_fifo_fname}";
 	else	trap "rm -f \"${_rc_fifo_fname}\" >/dev/null 2>&1" EXIT HUP INT TERM USR1 USR2;
-		{ sleep 1; set +o errexit; exec 3>"${_rc_fifo_fname}"; ssh -l"${_user}" -T "${_host}" "${REMOTE_SCRIPT}" 2>/dev/null; echo "${?}" >&3; } | {
+		{
+			sleep 1; set +o errexit; exec 3>"${_rc_fifo_fname}";
+			ssh	-l"${_user}"			\
+				-oServerAliveinterval=60	\
+				-T "${_host}"			\
+				"${REMOTE_SCRIPT}" 2>/dev/null;
+			echo "${?}" >&3;
+		} | {
 		exec 3<>"${_rc_fifo_fname}";
 		while true; do
 			if [ "${_rc_fifo_fl:-0}" -eq 0 ]; then
@@ -140,7 +147,8 @@ update_host() {
 			printf " [${DEFAULT_COLOUR_FAILURE}m[ssh(1) exited w/ exit status %s.][0m\n" "${_rc_fifo_rc}";
 		else
 			printf ".\n";
-		fi;};
+		fi;
+		};
 		rm -f "${_rc_fifo_fname}"; trap - EXIT HUP INT TERM USR1 USR2;
 	fi;
 };
