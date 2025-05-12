@@ -69,6 +69,10 @@ class AptState(object):
         return ((self.pkgCache[pkg.name].current_state in (*self.halfInstalledFilter, apt_pkg.CURSTATE_INSTALLED))
                 if pkg.name in self.pkgCache else False)
     # }}}
+    # {{{ def filterPhasing(self, pkg: apt_pkg.Package) -> bool
+    def filterPhasing(self, pkg: apt_pkg.Package) -> bool:
+        return (self.depCache.phasing_applied(pkg))
+    # }}}
     # {{{ def filterUpgradable(self, pkg: apt_pkg.Package) -> bool
     def filterUpgradable(self, pkg: apt_pkg.Package) -> bool:
         return (self.cache[pkg.name].is_upgradable if pkg.name in self.cache else False)
@@ -682,7 +686,9 @@ The following output was generated during cleaning of the archives directory:
                         pkgList = [aptState.pkgCache[name] for name in self.args.packages.split(",")]
                     else:
                         pkgList = tuple(filter(lambda pkg:
-                                aptState.filterHalfInstalled(pkg) or aptState.filterUpgradable(pkg),
+                                (           aptState.filterHalfInstalled(pkg)
+                                 or         aptState.filterUpgradable(pkg)
+                                 and not    aptState.filterPhasing(pkg)),
                                 aptState.pkgCache.packages))
                     if len(pkgList):
                         aptState.markPackages(aptOperations, pkgList)
