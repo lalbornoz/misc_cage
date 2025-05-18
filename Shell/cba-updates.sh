@@ -17,11 +17,11 @@ REMOTE_SCRIPT='
 	init; trap "fini \"${log_fname}\"" EXIT HUP INT QUIT TERM USR1 USR2;
 
 	# apt-get -y update
-	apt-get -y update >>"${log_fname}" 2>&1;
+	DEBIAN_FRONTEND=noninteractive apt-get -y update >>"${log_fname}" 2>&1;
 	status "${?}" update;
 
 	# apt-get -y dist-upgrade
-	pkgs="$(apt-get -y -o Dpkg::Options::="--force-confold" dist-upgrade 2>&1)"; rc="${?}";
+	pkgs="$(DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confold" dist-upgrade 2>&1)"; rc="${?}";
 	printf "%s\n" "${pkgs}" >>"${log_fname}";
 	pkgs="$(printf "%s\n" "${pkgs}"									|
 		awk '\''
@@ -32,7 +32,7 @@ REMOTE_SCRIPT='
 	status "${rc}" dist-upgrade "${pkgs}";
 
 	# apt-get -y autoremove --purge
-	apt-get -y autoremove --purge >>"${log_fname}" 2>&1;
+	DEBIAN_FRONTEND=noninteractive apt-get -y autoremove --purge >>"${log_fname}" 2>&1;
 	status "${?}" autoremove;
 
 	# rm -f /var/cache/apt/archives/*.deb
