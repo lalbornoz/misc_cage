@@ -45,12 +45,6 @@ ls_app() {
 	[ "${_Nflag}" -eq 1 ] && _nflag=1;
 	rc -e "${_nflag}" ls -alR \"\${_path_src}\" \> \"\${_fname_dst}\";
 };
-
-tar_app() {
-	local _nflag="${1}" _Nflag="${2}" _path_dst="app";
-	[ "${_Nflag}" -eq 1 ] && _nflag=1;
-	rc -e "${_nflag}" tar -cpf - \"\${_path_dst}\" \> \"\${_path_dst%/}.tar\";
-};
 # }}}
 # {{{ data
 rsync_data() {
@@ -64,12 +58,6 @@ ls_data() {
 	[ "${_Nflag}" -eq 1 ] && _nflag=1;
 	rc -e "${_nflag}" ls -alR \"\${_path_src}\" \> \"\${_fname_dst}\";
 };
-
-tar_data() {
-	local _nflag="${1}" _Nflag="${2}" _path_dst="data";
-	[ "${_Nflag}" -eq 1 ] && _nflag=1;
-	rc -e "${_nflag}" tar -cpf - \"\${_path_dst}\" \> \"\${_path_dst%/}.tar\";
-};
 # }}}
 # {{{ media
 rsync_media() {
@@ -82,12 +70,6 @@ ls_media() {
 	local _nflag="${1}" _Nflag="${2}" _fname_dst="media.lst" _path_src="media";
 	[ "${_Nflag}" -eq 1 ] && _nflag=1;
 	rc -e "${_nflag}" ls -alR \"\${_path_src}\" \> \"\${_fname_dst}\";
-};
-
-tar_media() {
-	local _nflag="${1}" _Nflag="${2}" _path_dst="media"
-	[ "${_Nflag}" -eq 1 ] && _nflag=1;
-	rc -e "${_nflag}" tar -cpf - \"\${_path_dst}\" \> \"\${_path_dst%/}.tar\";
 };
 # }}}
 
@@ -144,17 +126,14 @@ main() {
 		 if [ "${_aflag}" -eq 1 ]; then
 		 	rsync_app "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 		 	ls_app "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
-		 	tar_app "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 		 fi;
 		 if [ "${_dflag}" -eq 1 ]; then
 		 	rsync_data "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 		 	ls_data "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
-		 	tar_data "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 		 fi;
 		 if [ "${_mflag}" -eq 1 ]; then
 			 rsync_media "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 			 ls_media "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
-			 tar_media "${_nflag}" "${_Nflag}"; [ "${?}" -ne 0 ] && _rc="${?}";
 		 fi;
 		 exit "${_rc}"
 		);
