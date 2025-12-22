@@ -1,11 +1,12 @@
 #!/bin/sh
 
 usage() {
-	printf "usage: %s [-X] fname\n" "${1##*/}" 2>&1;
+	printf "usage: %s [-X] fname[..]\n" "${1##*/}" 2>&1;
 };
 
 imgupload() {
-	local _ _fname="" _opt="" _url="" _Xflag=0;
+	local	_fname="" _key="" _nurls=0 _opt="" _rc=0	\
+		_rc_last=0 _url="" _urls="" _Xflag=0;
 
 	while getopts X _opt; do
 	case "${_opt}" in
@@ -28,16 +29,37 @@ imgupload() {
 		return 0;
 	fi;
 
-	_url="$(curl -v -F file="@${_fname}" "https://ballpit.net" 2>&1 |\
-		sed -ne '/location:/s/^.*location: \(.*\)$/\1/p')" || return 1;
+	for _fname in "${@}"; do
+		_rc_last=0;
+		_url="$(curl -v -F file="@${_fname}" "https://ballpit.net" 2>&1)" || _rc_last=1;
 
-	printf "%s" "${_url}" | xclip -sel primary;
-	printf "%s" "${_url}" | xclip -i -sel clipboard;
+		if [ "${_rc_last}" -eq 0 ]; then
+			_url="$(printf "%s" "${_url}" |\
+				sed -ne '/location:/s/^.*location: \(.*\)$/\1/p' |\
+				sed -e 's/[\r\n]*//g')";
+			_urls="${_urls:+${_urls} }${_url}";
+			: $((_nurls+=1));
+		else
+			printf "Failed uploading %s: %s\n" "${_fname}" "${_url}";
+			_rc=1;
+		fi;
+	done;
 
-	printf "Screenshot uploaded as %s\n" "${_url}";
-	printf "Link copied to clipboard.\n";
+	printf "%s" "${_urls}" | xclip -sel primary;
+	printf "%s" "${_urls}" | xclip -i -sel clipboard;
+
+	if [ "${_urls:+1}" = 1 ]; then
+		if [ "${_nurls}" -gt 1 ]; then
+			printf "Images uploaded as %s\n" "${_urls}";
+			printf "Links copied to clipboard.\n";
+		else
+			printf "Image uploaded as %s\n" "${_urls}";
+			printf "Link copied to clipboard.\n";
+		fi;
+	fi;
+
 	printf "Press any key to exit.\n";
-	read _;
+	read _key;
 
 	return 0;
 };
