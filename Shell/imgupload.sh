@@ -1,15 +1,16 @@
 #!/bin/sh
 
 usage() {
-	printf "usage: %s [-X] fname[..]\n" "${1##*/}" 2>&1;
+	printf "usage: %s [-w] [-X] fname[..]\n" "${1##*/}" 2>&1;
 };
 
 imgupload() {
 	local	_fname="" _key="" _nurls=0 _opt="" _rc=0	\
-		_rc_last=0 _url="" _urls="" _Xflag=0;
+		_rc_last=0 _url="" _urls="" _wflag=0 _Xflag=0;
 
-	while getopts X _opt; do
+	while getopts wX _opt; do
 	case "${_opt}" in
+	w)	_wflag=1; ;;
 	X)	_Xflag=1; ;;
 	*)	usage "${0}"; return 1; ;;
 	esac; done;
@@ -25,17 +26,20 @@ imgupload() {
 			_fname="${PWD}/${_fname}";
 		fi;
 
-		exo-open --launch TerminalEmulator "${0}" \""${_fname}"\";
+		if [ "${_wflag}" -eq 1 ]; then
+			exo-open --launch TerminalEmulator "${0}" -w \""${_fname}"\";
+		else
+			exo-open --launch TerminalEmulator "${0}" \""${_fname}"\";
+		fi;
 		return 0;
 	fi;
 
 	for _fname in "${@}"; do
 		_rc_last=0;
-		_url="$(curl -v -F file="@${_fname}" "https://ballpit.net" 2>&1)" || _rc_last=1;
+		_url="$(curl -s -F file="@${_fname}" "https://hardfiles.org")" || _rc_last=1;
 
 		if [ "${_rc_last}" -eq 0 ]; then
 			_url="$(printf "%s" "${_url}" |\
-				sed -ne '/location:/s/^.*location: \(.*\)$/\1/p' |\
 				sed -e 's/[\r\n]*//g')";
 			_urls="${_urls:+${_urls} }${_url}";
 			: $((_nurls+=1));
@@ -58,8 +62,10 @@ imgupload() {
 		fi;
 	fi;
 
-	printf "Press any key to exit.\n";
-	read _key;
+	if [ "${_wflag}" -eq 1 ]; then
+		printf "Press any key to exit.\n";
+		read _key;
+	fi;
 
 	return 0;
 };
