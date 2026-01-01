@@ -6,10 +6,13 @@ RTORRENT_MAIL_TO="username";
 rmp_encode_uri() {
 	local _ruri="${1#\$}";
 	eval "${_ruri}"=\"\$\(printf \"%s\" \"\$\{${_ruri}\}\" \| sed		\
+		-e \'s,%,%25,g\'						\
 		-e \'s,\(,%28,g\'						\
 		-e \'s,\),%29,g\'						\
 		-e \'s,\\[,%5b,g\'						\
 		-e \'s,\\],%5d,g\'						\
+		-e \'s,{,%7b,g\'						\
+		-e \'s,},%7d,g\'						\
 		-e \'s, ,%20,g\'\)\";
 };
 
