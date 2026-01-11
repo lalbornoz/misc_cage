@@ -1,15 +1,21 @@
 #!/bin/sh
 
 usage() {
-	printf "usage: %s [-w] [-X] fname[..]\n" "${1##*/}" 2>&1;
+	printf "usage: %s [-v] [-w] [-X] fname[..]\n" "${1##*/}" 2>&1;
+	printf "       -v.........: pass -v to curl\n" 2>&1;
+	printf "       -w.........: wait for input before exit\n" 2>&1;
+	printf "       -X.........: run windowed via exo-open --launch TerminalEmulator\n" 2>&1;
 };
 
 imgupload() {
-	local	_fname="" _key="" _nurls=0 _opt="" _rc=0	\
-		_rc_last=0 _url="" _urls="" _wflag=0 _Xflag=0;
+	local	_curl_args_extra="" _fname="" _key="" _nurls=0 _opt=""	\
+		_rc=0 _rc_last=0 _url="" _urls="" _vflag=0 _wflag=0	\
+		_Xflag=0;
 
-	while getopts wX _opt; do
+	while getopts hwvX _opt; do
 	case "${_opt}" in
+	h)	usage "${0}"; return 0; ;;
+	v)	_vflag=1; _curl_args_extra="-v"; ;;
 	w)	_wflag=1; ;;
 	X)	_Xflag=1; ;;
 	*)	usage "${0}"; return 1; ;;
@@ -35,8 +41,18 @@ imgupload() {
 	fi;
 
 	for _fname in "${@}"; do
+		if ! [ -e "${_fname}" ]; then
+			printf "Warning: file \`%s' not found, skipping.\n" "${_fname}" 2>&1;
+			continue;
+		fi;
+
 		_rc_last=0;
-		_url="$(curl -s -F file="@${_fname}" "https://hardfiles.org")" || _rc_last=1;
+		_url="$(curl				\
+			-s				\
+			-F file="@${_fname}"		\
+			${_curl_args_extra}		\
+			"https://hardfiles.org")"	\
+				|| _rc_last=1;
 
 		if [ "${_rc_last}" -eq 0 ]; then
 			_url="$(printf "%s" "${_url}" |\
