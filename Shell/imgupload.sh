@@ -7,36 +7,31 @@ usage() {
 	printf "       -X.........: run windowed via exo-open --launch TerminalEmulator\n" 2>&1;
 };
 
+concatr() {
+	local _vname="${1#\$}" _string="${2}";
+	eval ${_vname}=\"\${_vname:+\${${_vname}\} }\${_string}\";
+};
+
 imgupload() {
-	local	_curl_args_extra="" _fname="" _key="" _nurls=0 _opt=""	\
-		_rc=0 _rc_last=0 _url="" _urls="" _vflag=0 _wflag=0	\
-		_Xflag=0;
+	local	_curl_args_extra="" _fname="" _key="" _nurls=0 _opt=""		\
+		_opt_string="" _rc=0 _rc_last=0 _url="" _urls="" _vflag=0	\
+		_wflag=0 _Xflag=0;
 
 	while getopts hwvX _opt; do
 	case "${_opt}" in
 	h)	usage "${0}"; return 0; ;;
-	v)	_vflag=1; _curl_args_extra="-v"; ;;
-	w)	_wflag=1; ;;
+	v)	_vflag=1; concatr \$_opt_string "-v"; _curl_args_extra="-v"; ;;
+	w)	_wflag=1; concatr \$_opt_string "-w"; ;;
 	X)	_Xflag=1; ;;
 	*)	usage "${0}"; return 1; ;;
 	esac; done;
 	shift $((${OPTIND}-1));
 	if [ "${#}" -lt 1 ]; then
 		usage "${0}"; return 1;
-	else
-		_fname="${1}";
 	fi;
 
 	if [ "${_Xflag}" = 1 ]; then
-		if [ "${_fname#/}" = "${_fname}" ]; then
-			_fname="${PWD}/${_fname}";
-		fi;
-
-		if [ "${_wflag}" -eq 1 ]; then
-			exo-open --launch TerminalEmulator "${0}" -w \""${_fname}"\";
-		else
-			exo-open --launch TerminalEmulator "${0}" \""${_fname}"\";
-		fi;
+		exo-open --launch TerminalEmulator "${0}" ${_opt_string} "${@}";
 		return 0;
 	fi;
 
